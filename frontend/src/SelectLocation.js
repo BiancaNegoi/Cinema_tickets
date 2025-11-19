@@ -4,8 +4,9 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
 const cinemaCoords = {
-  "Blue Note Club": [46.770439, 23.591423],
-  "Central Park": [46.768344, 23.569347],
+  "Iulius Mall": [46.771251, 23.625991],
+  "VIVO Cluj": [46.75021, 23.53374],
+  "Florin Piersic": [46.77476 , 23.5902]
 };
 
 const cinemaIcon = L.divIcon({

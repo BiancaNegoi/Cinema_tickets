@@ -5,6 +5,7 @@ export default function CinemaHome() {
   const [cinema] = useState("Cinema ABC");
   const [location] = useState("Iulius Mall Cluj");
 
+
   const [search, setSearch] = useState("");
   const [events, setEvents] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -34,8 +35,12 @@ export default function CinemaHome() {
       // Curățăm localStorage (filme vizualizate)
       localStorage.removeItem("seenMovies");
 
-      setEvents(uniqueEvents);
-      setFiltered(uniqueEvents);
+      // Filtrăm doar filmele din Iulius Mall
+     const mallOnly = uniqueEvents.filter(e => e.location === "Iulius Mall");
+
+      setEvents(mallOnly);
+      setFiltered(mallOnly);
+
     } catch (err) {
       console.log("Error loading events:", err);
     }
