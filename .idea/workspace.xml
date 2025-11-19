@@ -5,27 +5,25 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c70ed659-a265-4e44-90ce-ca2fc9c8cdf1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/public/favicon.ico" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/public/logo192.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/public/logo512.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/public/manifest.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/public/robots.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/App.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/App.test.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/index.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/logo.svg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/reportWebVitals.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/setupTests.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/proiectIS.drawio.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/view_db.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/CinemaHome.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/SelectLocation.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tickets.db" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tickets.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/.eslintcache" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/.eslintcache" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/0.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/0.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/1.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/1.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/2.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/2.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/3.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/3.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/4.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/4.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/5.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/5.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack.old" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack.old" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/index.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/index.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -50,22 +48,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "Merging main",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "D:/UTCN/An3/IS/proiect",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/UTCN/An3/IS/proiect&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\boanca\PycharmProjects\cinema\backend" />
+    </key>
+  </component>
   <component name="RunManager">
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="proiect" />
@@ -94,7 +99,6 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-9c94529fcfe0-JavaScript-PY-252.26199.168" />
         <option value="bundled-python-sdk-b3d66beaba9a-c6efb3732140-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.26199.168" />
       </set>
     </attachedChunks>

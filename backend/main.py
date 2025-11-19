@@ -111,19 +111,25 @@ def get_events():
     events = cursor.fetchall()
     conn.close()
 
-    return [
-        EventResponse(
-            id=event["id"],
-            title=event["title"],
-            description=event["description"],
-            date=event["date"],
-            location=event["location"],
-            total_tickets=event["total_tickets"],
-            available_tickets=event["available_tickets"],
-            price=event["price"]
-        )
+    # Transformăm în listă de dict-uri
+    events_list = [
+        {
+            "id": event["id"],
+            "title": event["title"],
+            "description": event["description"],
+            "date": event["date"],
+            "location": event["location"],
+            "total_tickets": event["total_tickets"],
+            "available_tickets": event["available_tickets"],
+            "price": event["price"],
+        }
         for event in events
     ]
+
+    # Eliminăm duplicatele după id
+    unique_events = {e['id']: e for e in events_list}.values()
+
+    return list(unique_events)
 
 @app.post("/events/sample")
 def create_sample_events():
