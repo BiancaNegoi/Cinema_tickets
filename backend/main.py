@@ -32,6 +32,7 @@ class EventResponse(BaseModel):
     description: Optional[str]
     date: str
     location: str
+    genre: Optional[str] = None
     total_tickets: int
     available_tickets: int
     price: float
@@ -68,6 +69,7 @@ def init_db():
                 total_tickets INTEGER NOT NULL,
                 available_tickets INTEGER NOT NULL,
                 price REAL NOT NULL,
+                genre TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -119,6 +121,7 @@ def get_events():
             "description": event["description"],
             "date": event["date"],
             "location": event["location"],
+            "genre": event["genre"],  # ← PASUL 3 ESTE FIX ASTA
             "total_tickets": event["total_tickets"],
             "available_tickets": event["available_tickets"],
             "price": event["price"],
@@ -231,4 +234,4 @@ def purchase_ticket(ticket: TicketPurchase):
     )
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)

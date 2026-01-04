@@ -8,9 +8,15 @@ venv/
 # PyCharm
 .idea/
 
+# SQLite (DB local)
+*.db
+*.sqlite
+*.sqlite3
+
 # Node / React
 frontend/node_modules/
 frontend/build/
+frontend/node_modules/.cache/
 
-# VS Code (dacă folosești)
+# VS Code
 .vscode/
