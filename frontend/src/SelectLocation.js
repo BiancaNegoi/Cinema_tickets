@@ -33,7 +33,6 @@ function SelectLocation() {
       if (!response.ok) throw new Error("HTTP error " + response.status);
       const data = await response.json();
 
-      // Eliminăm duplicatele după id
       const uniqueEvents = Array.from(new Map(data.map(e => [e.id, e])).values());
 
       setEvents(uniqueEvents);

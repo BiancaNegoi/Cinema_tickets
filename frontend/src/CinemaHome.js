@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-/**
- * Strategy Pattern
- */
 class SortByTitleAscStrategy {
   sort(list) {
     return [...list].sort((a, b) =>
@@ -64,7 +61,6 @@ export default function CinemaHome() {
 
   const [search, setSearch] = useState("");
   const [events, setEvents] = useState([]);
-
   const [selectedGenre, setSelectedGenre] = useState("Toate");
 
   const navigate = useNavigate();
@@ -78,11 +74,7 @@ export default function CinemaHome() {
       const response = await fetch("http://127.0.0.1:8000/events/");
       const data = await response.json();
 
-      // DEBUG: dacă aici nu vezi "genre", backend-ul nu îl trimite
-      console.log("API first item:", data?.[0]);
-
       const uniqueEvents = Array.from(new Map(data.map((e) => [e.id, e])).values());
-
       localStorage.removeItem("seenMovies");
 
       const filteredByLocation = uniqueEvents.filter(
@@ -91,7 +83,6 @@ export default function CinemaHome() {
 
       setEvents(filteredByLocation);
 
-      // dacă genul selectat nu există în cinema-ul curent, revino la "Toate"
       const availableGenres = new Set(
         filteredByLocation.map((e) => (e.genre || "").trim()).filter(Boolean)
       );
@@ -103,14 +94,16 @@ export default function CinemaHome() {
     }
   };
 
-  // Genuri (din filmele curente)
   const genres = useMemo(() => {
     const set = new Set();
     events.forEach((e) => {
       const g = (e.genre || "").trim();
       if (g) set.add(g);
     });
-    return ["Toate", ...Array.from(set).sort((a, b) => a.localeCompare(b, "ro", { sensitivity: "base" }))];
+    return [
+      "Toate",
+      ...Array.from(set).sort((a, b) => a.localeCompare(b, "ro", { sensitivity: "base" })),
+    ];
   }, [events]);
 
   const filteredAndSorted = useMemo(() => {
@@ -119,204 +112,387 @@ export default function CinemaHome() {
       new GenreFilterStrategy(selectedGenre),
     ]);
     const sortStrategy = new SortByTitleAscStrategy();
-
     const service = new MovieListService({ filterStrategy, sortStrategy });
     return service.apply(events);
   }, [events, search, selectedGenre]);
+
+  const isToday = (isoDateString) => {
+    if (!isoDateString) return false;
+    const d = new Date(isoDateString);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+
+  const todayEvents = useMemo(() => {
+    const onlySearch = new SearchFilterStrategy(search).filter(events);
+    return onlySearch.filter((e) => isToday(e.date));
+  }, [events, search]);
 
   const changeLocation = (newLoc) => {
     localStorage.setItem("selectedCinema", newLoc);
     setLocation(newLoc);
     setShowLocationMenu(false);
-
     setSearch("");
     setSelectedGenre("Toate");
   };
 
-  // ===== styles =====
   const pageStyle = {
     minHeight: "100vh",
     background: "#ffe4f0",
-    padding: "20px 20px",
     fontFamily: "Arial, sans-serif",
+    paddingBottom: "110px",
+  };
+
+  const topBarStyle = {
+    position: "sticky",
+    top: 0,
+    zIndex: 2000,
+    background: "rgba(255, 228, 240, 0.92)",
+    backdropFilter: "blur(8px)",
+    borderBottom: "1px solid rgba(0,0,0,0.06)",
+    padding: "8px 12px",
+  };
+
+  const topBarInner = {
+    maxWidth: "1000px",
+    margin: "0",
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+  };
+
+  const brandBox = {
+  display: "flex",
+  flexDirection: "column",
+  lineHeight: 1.05,
+  minWidth: "160px",
+  alignItems: "flex-start",
+};
+
+
+  const brandTitle = {
+    fontSize: "18px",
+    fontWeight: 900,
+    letterSpacing: "0.4px",
+    color: "#b4005d",
+  };
+
+  const brandSub = {
+    fontSize: "12px",
+    fontWeight: 800,
+    color: "#d63384",
+    opacity: 0.9,
+  };
+
+  const leftControls = {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    flexWrap: "wrap",
+  };
+
+  const locationPill = {
+    padding: "8px 10px",
+    borderRadius: "999px",
+    background: "white",
+    border: "1px solid rgba(0,0,0,0.06)",
+    fontWeight: 800,
+    color: "#b4005d",
+    cursor: "pointer",
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  };
+
+  const changeBtn = {
+    padding: "8px 12px",
+    borderRadius: "999px",
+    border: "none",
+    background: "#ff99c8",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 900,
+    boxShadow: "0 6px 14px rgba(0,0,0,0.10)",
+  };
+
+  const rightControls = {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  };
+
+  const searchWrap = {
+    position: "relative",
+    width: "360px",
+    maxWidth: "100%",
+  };
+
+  const searchInputSticky = {
+    padding: "10px 14px 10px 38px",
+    width: "100%",
+    borderRadius: "999px",
+    border: "2px solid #ffb3d1",
+    background: "white",
+    fontSize: "14px",
+    outline: "none",
+  };
+
+  const searchIcon = {
+    position: "absolute",
+    left: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    fontSize: "16px",
+    opacity: 0.65,
   };
 
   const containerStyle = {
     maxWidth: "1200px",
     margin: "0 auto",
+    padding: "14px 16px 0 16px",
   };
 
-  const headerStyle = {
-    textAlign: "center",
-    marginBottom: "18px",
-  };
-
-  // rând: search stânga + gen dreapta
-  const filtersRowStyle = {
-    display: "flex",
-    gap: "16px",
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    marginBottom: "22px",
-  };
-
-  const searchInputStyle = {
-    padding: "12px 20px",
-    width: "680px",
-    maxWidth: "100%",
-    borderRadius: "30px",
-    border: "2px solid #ffb3d1",
-    background: "white",
-    fontSize: "16px",
-  };
-
-  const genreBoxStyle = {
-    background: "white",
-    borderRadius: "18px",
-    padding: "12px 14px",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-    minWidth: "240px",
-  };
-
-  const genreSelectStyle = {
-    width: "100%",
-    padding: "10px 12px",
-    borderRadius: "12px",
-    border: "2px solid #ffb3d1",
-    outline: "none",
-    fontSize: "14px",
+  const sectionTitle = {
+    fontSize: "18px",
+    fontWeight: 900,
     color: "#b4005d",
-    fontWeight: "bold",
+    margin: "14px 0 12px 0",
+  };
+
+  const todayRow = {
+    display: "flex",
+    gap: "14px",
+    overflowX: "auto",
+    paddingBottom: "10px",
+    scrollSnapType: "x mandatory",
+  };
+
+  const todayCard = {
+    minWidth: "260px",
+    scrollSnapAlign: "start",
     background: "white",
-    cursor: "pointer",
+    borderRadius: "20px",
+    padding: "16px",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.10)",
+    border: "1px solid rgba(0,0,0,0.06)",
   };
 
   const cardsGridStyle = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
     gap: "25px",
+    marginTop: "10px",
+  };
+
+  const cardStyle = {
+    background: "white",
+    borderRadius: "20px",
+    padding: "20px",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  };
+
+  const primaryBtn = {
+    marginTop: "10px",
+    padding: "10px 15px",
+    width: "100%",
+    background: "#ff77b3",
+    border: "none",
+    color: "white",
+    borderRadius: "15px",
+    cursor: "pointer",
+    fontWeight: 900,
+  };
+
+  const genreBoxInline = {
+    background: "white",
+    borderRadius: "16px",
+    padding: "10px 12px",
+    border: "1px solid rgba(0,0,0,0.06)",
+    minWidth: "240px",
+    boxShadow: "0 6px 14px rgba(0,0,0,0.06)",
+  };
+
+  const stickyBottomWrap = {
+    position: "fixed",
+    left: "50%",
+    bottom: "18px",
+    transform: "translateX(-50%)",
+    zIndex: 2500,
+  };
+
+  const stickyBuyBtn = {
+    padding: "14px 22px",
+    borderRadius: "999px",
+    border: "none",
+    background: "#b4005d",
+    color: "white",
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(0,0,0,0.22)",
+    minWidth: "240px",
+    fontSize: "16px",
   };
 
   return (
     <div style={pageStyle}>
-      <div style={containerStyle}>
-        <header style={headerStyle}>
-          <h1 style={{ color: "#d63384", fontSize: "3rem", marginBottom: "8px" }}>
-            🎬 {cinema}
-          </h1>
+      <div style={topBarStyle}>
+        <div style={topBarInner}>
+          <div style={brandBox}>
+            <div style={brandTitle}>{cinema.split(" ")[0] || "Cinema"}</div>
+            <div style={brandSub}>{cinema.split(" ").slice(1).join(" ") || "ABC"}</div>
+          </div>
 
+          <div style={leftControls}>
+          <div
+                 style={locationPill}
+                 onClick={() => {
+                 setShowLocationMenu(false);
+             navigate("/select-location");
+        }}
+        >
+        📍 {location}
+  </div>
+
+
+            <div style={{ position: "relative" }}>
+              <button style={changeBtn} onClick={() => setShowLocationMenu(!showLocationMenu)}>
+                Schimbă cinematograful
+              </button>
+
+              {showLocationMenu && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "44px",
+                    left: 0,
+                    background: "#fff",
+                    borderRadius: "12px",
+                    padding: "10px",
+                    boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
+                    width: "200px",
+                    zIndex: 3000,
+                  }}
+                >
+                  {["Iulius Mall", "VIVO Cluj", "Florin Piersic"].map((loc) => (
+                    <button
+                      key={loc}
+                      onClick={() => changeLocation(loc)}
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        borderRadius: "10px",
+                        border: "none",
+                        background: "#ffb3d1",
+                        marginBottom: loc !== "Florin Piersic" ? "8px" : 0,
+                        cursor: "pointer",
+                        fontWeight: 900,
+                        color: "#7a0040",
+                      }}
+                    >
+                      {loc}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={rightControls}>
+            <div style={searchWrap}>
+              <span style={searchIcon}>🔍</span>
+              <input
+                type="text"
+                placeholder="Caută filme..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={searchInputSticky}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={containerStyle}>
+        <div style={sectionTitle}>Astăzi</div>
+
+        {todayEvents.length === 0 ? (
           <div
             style={{
-              fontSize: "20px",
-              fontWeight: "bold",
-              color: "#b4005d",
-              cursor: "pointer",
-              marginBottom: "10px",
+              background: "white",
+              borderRadius: "18px",
+              padding: "16px",
+              border: "1px solid rgba(0,0,0,0.06)",
+              color: "#7a0040",
+              fontWeight: 800,
             }}
-            onClick={() => navigate("/select-location")}
           >
-            📍 {location}
+            Nu există filme programate pentru azi.
           </div>
+        ) : (
+          <div style={todayRow}>
+            {todayEvents.map((event) => (
+              <div key={`today-${event.id}`} style={todayCard}>
+                <h3 style={{ color: "#d63384", margin: 0 }}>{event.title}</h3>
+                <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>
+                  📍 {event.location}
+                </div>
+                {event.genre && (
+                  <div style={{ marginTop: "6px", color: "#7a0040", fontWeight: 800 }}>
+                    🏷️ {event.genre}
+                  </div>
+                )}
+                <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>
+                  🎟️ {event.available_tickets}/{event.total_tickets}
+                </div>
+                <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 900 }}>
+                  💰 {event.price} lei
+                </div>
 
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <button
-              style={{
-                padding: "10px 18px",
-                borderRadius: "20px",
-                border: "none",
-                background: "#ff99c8",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: "bold",
-              }}
-              onClick={() => setShowLocationMenu(!showLocationMenu)}
-            >
-              Schimbă cinematograful
-            </button>
-
-            {showLocationMenu && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "45px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  background: "#fff",
-                  borderRadius: "12px",
-                  padding: "10px",
-                  boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-                  width: "200px",
-                  zIndex: 1000,
-                }}
-              >
-                <button
-                  onClick={() => changeLocation("Iulius Mall")}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#ffb3d1",
-                    marginBottom: "8px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Iulius Mall
-                </button>
-
-                <button
-                  onClick={() => changeLocation("Vivo Cluj")}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#ffb3d1",
-                    marginBottom: "8px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Vivo Cluj
-                </button>
-
-                <button
-                  onClick={() => changeLocation("Florin Piersic")}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#ffb3d1",
-                    cursor: "pointer",
-                  }}
-                >
-                  Florin Piersic
+                <button style={primaryBtn} onClick={() => alert("Detalii vor fi implementate ulterior")}>
+                  Vezi detalii
                 </button>
               </div>
-            )}
+            ))}
           </div>
-        </header>
+        )}
 
-        {/* ✅ rând frumos: Search + Gen */}
-        <div style={filtersRowStyle}>
-          <input
-            type="text"
-            placeholder="Caută filme..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={searchInputStyle}
-          />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+            marginTop: "10px",
+          }}
+        >
+          <div style={sectionTitle}>Toate filmele</div>
 
-          <div style={genreBoxStyle}>
-            <div style={{ color: "#d63384", fontWeight: "bold", marginBottom: "8px" }}>
-              Gen
-            </div>
-
+          <div style={genreBoxInline}>
+            <div style={{ color: "#d63384", fontWeight: 900, marginBottom: "6px" }}>Gen</div>
             <select
               value={selectedGenre}
               onChange={(e) => setSelectedGenre(e.target.value)}
-              style={genreSelectStyle}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "12px",
+                border: "2px solid #ffb3d1",
+                outline: "none",
+                fontSize: "14px",
+                color: "#b4005d",
+                fontWeight: "bold",
+                background: "white",
+                cursor: "pointer",
+              }}
             >
               {genres.map((g) => (
                 <option key={g} value={g}>
@@ -327,41 +503,34 @@ export default function CinemaHome() {
           </div>
         </div>
 
-        {/* Lista filme */}
         <div style={cardsGridStyle}>
           {filteredAndSorted.map((event) => (
-            <div
-              key={event.id}
-              style={{
-                background: "white",
-                borderRadius: "20px",
-                padding: "20px",
-                boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-              }}
-            >
+            <div key={event.id} style={cardStyle}>
               <h3 style={{ color: "#d63384" }}>{event.title}</h3>
-              <p>📍 {event.location}</p>
-              {event.genre && <p>🏷️ {event.genre}</p>}
-              <p>🎟️ {event.available_tickets}/{event.total_tickets}</p>
-              <p>💰 {event.price} lei</p>
+              <p style={{ margin: "6px 0" }}>📍 {event.location}</p>
+              {event.genre && <p style={{ margin: "6px 0" }}>🏷️ {event.genre}</p>}
+              <p style={{ margin: "6px 0" }}>
+                🎟️ {event.available_tickets}/{event.total_tickets}
+              </p>
+              <p style={{ margin: "6px 0", fontWeight: 900, color: "#7a0040" }}>
+                💰 {event.price} lei
+              </p>
 
-              <button
-                style={{
-                  marginTop: "10px",
-                  padding: "10px 15px",
-                  width: "100%",
-                  background: "#ff77b3",
-                  border: "none",
-                  color: "white",
-                  borderRadius: "15px",
-                  cursor: "pointer",
-                }}
-              >
+              <button style={primaryBtn} onClick={() => alert("Detalii vor fi implementate ulterior")}>
                 Vezi detalii
               </button>
             </div>
           ))}
         </div>
+      </div>
+
+      <div style={stickyBottomWrap}>
+        <button
+          style={stickyBuyBtn}
+          onClick={() => alert("Funcția de cumpărare va fi implementată ulterior")}
+        >
+          🎟️ Cumpără bilet
+        </button>
       </div>
     </div>
   );

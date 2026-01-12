@@ -6,9 +6,10 @@ from typing import Optional, List
 import sqlite3
 import uvicorn
 
+from factories.ticket_factory import TicketPricingFactory
+
 app = FastAPI(title="Ticket Sales API")
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +18,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic Models
 class EventCreate(BaseModel):
     title: str
     description: Optional[str] = None
@@ -52,7 +52,6 @@ class TicketResponse(BaseModel):
     total_price: float
     is_paid: bool
 
-# Database setup
 def init_db():
     try:
         conn = sqlite3.connect('tickets.db')
@@ -113,7 +112,6 @@ def get_events():
     events = cursor.fetchall()
     conn.close()
 
-    # Transformăm în listă de dict-uri
     events_list = [
         {
             "id": event["id"],
@@ -121,7 +119,7 @@ def get_events():
             "description": event["description"],
             "date": event["date"],
             "location": event["location"],
-            "genre": event["genre"],  # ← PASUL 3 ESTE FIX ASTA
+            "genre": event["genre"],
             "total_tickets": event["total_tickets"],
             "available_tickets": event["available_tickets"],
             "price": event["price"],
@@ -129,7 +127,6 @@ def get_events():
         for event in events
     ]
 
-    # Eliminăm duplicatele după id
     unique_events = {e['id']: e for e in events_list}.values()
 
     return list(unique_events)
