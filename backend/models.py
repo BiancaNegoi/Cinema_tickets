@@ -15,6 +15,9 @@ class EventDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     description = Column(String)
+
+    genre = Column(String, nullable=True)
+
     date = Column(DateTime, nullable=False)
     location = Column(String, nullable=False)
     total_tickets = Column(Integer, nullable=False)
@@ -40,6 +43,10 @@ class TicketDB(Base):
 class EventCreate(BaseModel):
     title: str
     description: Optional[str] = None
+
+    # ✅ NOU (opțional, ca să nu-ți pice dacă nu trimiți gen)
+    genre: Optional[str] = None
+
     date: datetime
     location: str
     total_tickets: int
@@ -50,11 +57,13 @@ class EventResponse(BaseModel):
     id: int
     title: str
     description: Optional[str]
-    date: datetime
+    date: str
     location: str
+    genre: Optional[str] = None
     total_tickets: int
     available_tickets: int
     price: float
+
 
 
 class TicketPurchase(BaseModel):
