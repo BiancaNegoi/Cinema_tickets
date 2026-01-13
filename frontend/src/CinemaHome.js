@@ -526,11 +526,12 @@ export default function CinemaHome() {
 
       <div style={stickyBottomWrap}>
         <button
-          style={stickyBuyBtn}
-          onClick={() => alert("Funcția de cumpărare va fi implementată ulterior")}
-        >
-          🎟️ Cumpără bilet
+              style={stickyBuyBtn}
+              onClick={() => navigate("/buy")}
+              >
+            🎟️ Cumpără bilet
         </button>
+
       </div>
     </div>
   );

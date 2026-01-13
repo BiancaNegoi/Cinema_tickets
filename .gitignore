@@ -8,10 +8,6 @@ venv/
 # PyCharm
 .idea/
 
-# SQLite (DB local)
-*.db
-*.sqlite
-*.sqlite3
 
 # Node / React
 frontend/node_modules/
