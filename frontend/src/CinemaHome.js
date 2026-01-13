@@ -668,8 +668,10 @@ export default function CinemaHome() {
                   <button
                     style={{
                       ...primaryBtn,
-                      background: "#ff9500",
-                      flex: 1,
+                       background: "#ffd1e6",
+                       color: "#b4005d",
+                       border: "2px solid #ff77b3",
+                       flex: 1,
                     }}
                     onClick={() => hideMovie(event.id)}
                   >
