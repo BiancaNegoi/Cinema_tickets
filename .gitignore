@@ -15,5 +15,7 @@ frontend/build/
 frontend/node_modules/.cache/
 *.cache
 
+tickets.db
+
 # VS Code
 .vscode/
