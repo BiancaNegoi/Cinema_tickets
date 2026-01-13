@@ -65,13 +65,15 @@ export default function CinemaHome() {
 
   const navigate = useNavigate();
 
+  const API = "http://127.0.0.1:8000"; 
+
   useEffect(() => {
     loadEvents();
   }, [location]);
 
   const loadEvents = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/events/");
+      const response = await fetch(`${API}/events/`);
       const data = await response.json();
 
       const uniqueEvents = Array.from(new Map(data.map((e) => [e.id, e])).values());
@@ -140,6 +142,69 @@ export default function CinemaHome() {
     setSelectedGenre("Toate");
   };
 
+
+  const handleUndo = async () => {
+    try {
+      const response = await fetch(`${API}/commands/undo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      
+      if (response.ok) {
+        await loadEvents();
+        alert("Undo executat cu succes!");
+      } else {
+        const error = await response.json();
+        alert(`Eroare la undo: ${error.detail}`);
+      }
+    } catch (err) {
+      alert("Eroare de conexiune la server");
+    }
+  };
+
+  const handleRedo = async () => {
+    try {
+      const response = await fetch(`${API}/commands/redo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      
+      if (response.ok) {
+        await loadEvents();
+        alert("Redo executat cu succes!");
+      } else {
+        const error = await response.json();
+        alert(`Eroare la redo: ${error.detail}`);
+      }
+    } catch (err) {
+      alert("Eroare de conexiune la server");
+    }
+  };
+
+  const handleRemoveMovie = async (eventId) => {
+    if (!window.confirm("Sigur vrei să ștergi acest film? Poți face undo mai târziu.")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API}/events/remove/${eventId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      
+      if (response.ok) {
+        await loadEvents();
+        alert("Film șters cu succes! Folosește butonul ↩️ pentru undo.");
+      } else {
+        const error = await response.json();
+        alert(`Eroare: ${error.detail}`);
+      }
+    } catch (err) {
+      alert("Eroare de conexiune la server");
+    }
+  };
+ 
+
   const pageStyle = {
     minHeight: "100vh",
     background: "#ffe4f0",
@@ -168,13 +233,12 @@ export default function CinemaHome() {
   };
 
   const brandBox = {
-  display: "flex",
-  flexDirection: "column",
-  lineHeight: 1.05,
-  minWidth: "160px",
-  alignItems: "flex-start",
-};
-
+    display: "flex",
+    flexDirection: "column",
+    lineHeight: 1.05,
+    minWidth: "160px",
+    alignItems: "flex-start",
+  };
 
   const brandTitle = {
     fontSize: "18px",
@@ -351,16 +415,15 @@ export default function CinemaHome() {
           </div>
 
           <div style={leftControls}>
-          <div
-                 style={locationPill}
-                 onClick={() => {
-                 setShowLocationMenu(false);
-             navigate("/select-location");
-        }}
-        >
-        📍 {location}
-  </div>
-
+            <div
+              style={locationPill}
+              onClick={() => {
+                setShowLocationMenu(false);
+                navigate("/select-location");
+              }}
+            >
+              📍 {location}
+            </div>
 
             <div style={{ position: "relative" }}>
               <button style={changeBtn} onClick={() => setShowLocationMenu(!showLocationMenu)}>
@@ -516,23 +579,101 @@ export default function CinemaHome() {
                 💰 {event.price} lei
               </p>
 
-              <button style={primaryBtn} onClick={() => alert("Detalii vor fi implementate ulterior")}>
-                Vezi detalii
-              </button>
+       
+              <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                <button 
+                  style={{ 
+                    ...primaryBtn, 
+                    background: "#ff4444",
+                    flex: 1 
+                  }} 
+                  onClick={() => handleRemoveMovie(event.id)}
+                >
+                  🗑️ Șterge
+                </button>
+                
+                <button 
+                  style={{ 
+                    ...primaryBtn,
+                    flex: 1 
+                  }} 
+                  onClick={() => alert("Detalii vor fi implementate ulterior")}
+                >
+                  👁️ Detalii
+                </button>
+              </div>
             </div>
           ))}
         </div>
+
       </div>
 
       <div style={stickyBottomWrap}>
         <button
-              style={stickyBuyBtn}
-              onClick={() => navigate("/buy")}
-              >
-            🎟️ Cumpără bilet
+          style={stickyBuyBtn}
+          onClick={() => navigate("/buy")}
+        >
+          🎟️ Cumpără bilet
         </button>
-
       </div>
+
+
+      <div style={{ 
+        position: "fixed", 
+        right: "20px", 
+        bottom: "80px", 
+        display: "flex", 
+        gap: "10px",
+        zIndex: 3000,
+        flexDirection: "column"
+      }}>
+        <button
+          onClick={handleUndo}
+          style={{
+            padding: "14px",
+            borderRadius: "50%",
+            border: "none",
+            background: "#ff77b3",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: "bold",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            fontSize: "18px",
+            width: "50px",
+            height: "50px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+          title="Undo ultima acțiune"
+        >
+          ↩️
+        </button>
+        
+        <button
+          onClick={handleRedo}
+          style={{
+            padding: "14px",
+            borderRadius: "50%",
+            border: "none",
+            background: "#4CAF50",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: "bold",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            fontSize: "18px",
+            width: "50px",
+            height: "50px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+          title="Redo acțiune anulată"
+        >
+          ↪️
+        </button>
+      </div>
+
     </div>
   );
 }

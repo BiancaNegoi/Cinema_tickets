@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, List
 import sqlite3
 import uvicorn
-
+from abc import ABC, abstractmethod
 from factories.ticket_factory import TicketPricingFactory
 
 app = FastAPI(title="Ticket Sales API")
@@ -51,6 +51,161 @@ class TicketResponse(BaseModel):
     quantity: int
     total_price: float
     is_paid: bool
+
+
+class Command(ABC):
+    @abstractmethod
+    def execute(self):
+        pass
+
+    @abstractmethod
+    def undo(self):
+        pass
+
+class RemoveMovieCommand(Command):
+    def __init__(self, cinema, event_id):
+        self.cinema = cinema
+        self.event_id = event_id
+        self.saved_event = None
+
+    def execute(self):
+        conn = sqlite3.connect('tickets.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM events WHERE id = ?", (self.event_id,))
+        self.saved_event = cursor.fetchone()
+        conn.close()
+        if not self.saved_event:
+            raise Exception("Event not found")
+        self.cinema.remove_movie(self.event_id)
+
+    def undo(self):
+        if self.saved_event:
+            event = self.saved_event
+            self.cinema.add_movie(
+                EventCreate(
+                    title=event["title"],
+                    description=event["description"],
+                    date=event["date"],
+                    location=event["location"],
+                    total_tickets=event["total_tickets"],
+                    price=event["price"]
+                )
+            )
+
+class CancelTicketCommand(Command):
+    def __init__(self, cinema, ticket_id):
+        self.cinema = cinema
+        self.ticket_id = ticket_id
+        self.saved_ticket = None
+
+    def execute(self):
+        conn = sqlite3.connect('tickets.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tickets WHERE id = ?", (self.ticket_id,))
+        self.saved_ticket = cursor.fetchone()
+        conn.close()
+        if not self.saved_ticket:
+            raise Exception("Ticket not found")
+        self.cinema.cancel_ticket(self.ticket_id)
+
+    def undo(self):
+        if self.saved_ticket:
+            ticket = self.saved_ticket
+            self.cinema.reserve_ticket(
+                ticket["event_id"],
+                ticket["customer_name"],
+                ticket["customer_email"],
+                ticket["quantity"]
+            )
+
+class Cinema:
+    def add_movie(self, event):
+        conn = sqlite3.connect('tickets.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO events (title, description, date, location, total_tickets, available_tickets, price)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (event.title, event.description, event.date, event.location,
+              event.total_tickets, event.total_tickets, event.price))
+        conn.commit()
+        event_id = cursor.lastrowid
+        conn.close()
+        return event_id
+
+    def remove_movie(self, event_id):
+        conn = sqlite3.connect('tickets.db')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM events WHERE id = ?", (event_id,))
+        conn.commit()
+        conn.close()
+
+    def reserve_ticket(self, event_id, customer_name, customer_email, quantity):
+        conn = sqlite3.connect('tickets.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM events WHERE id = ?", (event_id,))
+        event = cursor.fetchone()
+        if not event:
+            conn.close()
+            raise Exception("Event not found")
+        if event["available_tickets"] < quantity:
+            conn.close()
+            raise Exception("Not enough tickets")
+        total_price = event["price"] * quantity
+        cursor.execute('''
+            INSERT INTO tickets (event_id, customer_name, customer_email, quantity, total_price, is_paid)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (event_id, customer_name, customer_email, quantity, total_price, True))
+        ticket_id = cursor.lastrowid
+        cursor.execute('UPDATE events SET available_tickets = available_tickets - ? WHERE id = ?',
+                       (quantity, event_id))
+        conn.commit()
+        conn.close()
+        return ticket_id
+
+    def cancel_ticket(self, ticket_id):
+        conn = sqlite3.connect('tickets.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
+        ticket = cursor.fetchone()
+        if not ticket:
+            conn.close()
+            raise Exception("Ticket not found")
+        cursor.execute("UPDATE events SET available_tickets = available_tickets + ? WHERE id = ?",
+                       (ticket["quantity"], ticket["event_id"]))
+        cursor.execute("DELETE FROM tickets WHERE id = ?", (ticket_id,))
+        conn.commit()
+        conn.close()
+
+
+class CommandManager:
+    def __init__(self):
+        self.history = []
+        self.redo_stack = []
+
+    def execute(self, command):
+        command.execute()
+        self.history.append(command)
+        self.redo_stack.clear()
+
+    def undo(self):
+        if self.history:
+            command = self.history.pop()
+            command.undo()
+            self.redo_stack.append(command)
+
+    def redo(self):
+        if self.redo_stack:
+            command = self.redo_stack.pop()
+            command.execute()
+            self.history.append(command)
+
+cinema = Cinema()
+manager = CommandManager()
+
 
 def init_db():
     try:
@@ -229,6 +384,37 @@ def purchase_ticket(ticket: TicketPurchase):
         total_price=row["total_price"],
         is_paid=bool(row["is_paid"])
     )
+@app.post("/events/remove/{event_id}")
+def remove_movie(event_id: int):
+    command = RemoveMovieCommand(cinema, event_id)
+    try:
+        manager.execute(command)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "Movie removed successfully"}
 
+@app.post("/tickets/cancel/{ticket_id}")
+def cancel_ticket(ticket_id: int):
+    command = CancelTicketCommand(cinema, ticket_id)
+    try:
+        manager.execute(command)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "Ticket canceled successfully"}
+@app.post("/commands/undo")
+def undo_command():
+    try:
+        manager.undo()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "Undo executed successfully"}
+
+@app.post("/commands/redo")
+def redo_command():
+    try:
+        manager.redo()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "Redo executed successfully"}
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)

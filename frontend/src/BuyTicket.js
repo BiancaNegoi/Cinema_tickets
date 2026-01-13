@@ -41,6 +41,8 @@ export default function BuyTicket() {
   const isSelectMode = !eventId; // /buy
   const isCheckoutMode = !!eventId; // /buy/:id
 
+  const [lastTicketId, setLastTicketId] = useState(null);
+  const [isTicketPurchased, setIsTicketPurchased] = useState(false);
   // =========================
   // Load events for /buy selection
   // =========================
@@ -154,52 +156,96 @@ export default function BuyTicket() {
     return "";
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (isSubmitting) return;
 
-    const msg = validate();
-    if (msg) {
-      setError(msg);
-      return;
+  const msg = validate();
+  if (msg) {
+    setError(msg);
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    const payload = {
+      event_id: Number(eventId),
+      customer_name: `${firstName.trim()} ${lastName.trim()}`,
+      customer_email: email.trim(),
+      quantity: Number(qty),
+    };
+
+    const res = await fetch(`${API}/tickets/purchase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.detail || "Eroare la cumpărare.");
     }
 
-    setIsSubmitting(true);
+    const ticket = await res.json();
+    
+    setLastTicketId(ticket.id);
+    setIsTicketPurchased(true);
+    
+    setSuccess(`✅ Bilet cumpărat cu succes! ID: ${ticket.id}. Total: ${ticket.total_price} lei`);
+    setError("");
 
-    try {
-      const payload = {
-        event_id: Number(eventId),
-        customer_name: `${firstName.trim()} ${lastName.trim()}`,
-        customer_email: email.trim(),
-        quantity: Number(qty),
-      };
+    setEvent((prev) =>
+      prev ? { ...prev, available_tickets: (prev.available_tickets ?? 0) - Number(qty) } : prev
+    );
+    
+    setLastName("");
+    setFirstName("");
+    setEmail("");
+    setCardName("");
+    setCardNumber("");
+    setExp("");
+    setCvv("");
+    setQty(1);
+    
+  } catch (err) {
+    setSuccess("");
+    setError(String(err.message || err));
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
-      const res = await fetch(`${API}/tickets/purchase`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.detail || "Eroare la cumpărare.");
-      }
-
-      const ticket = await res.json();
-      setSuccess(`Plata acceptată! Bilet cumpărat. Total: ${ticket.total_price} lei`);
-      setError("");
-
-      // update UI tickets
-      setEvent((prev) =>
-        prev ? { ...prev, available_tickets: (prev.available_tickets ?? 0) - Number(qty) } : prev
-      );
-    } catch (err) {
+const handleCancelTicket = async () => {
+  if (!lastTicketId || !window.confirm("Sigur vrei să anulezi acest bilet? Poți face undo mai târziu.")) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API}/tickets/cancel/${lastTicketId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    
+    if (response.ok) {
+     
+      const res = await fetch(`${API}/events/`);
+      const data = await res.json();
+      const found = (data || []).find((e) => String(e.id) === String(eventId));
+      setEvent(found || null);
+      
+      setLastTicketId(null);
+      setIsTicketPurchased(false);
       setSuccess("");
-      setError(String(err.message || err));
-    } finally {
-      setIsSubmitting(false);
+      alert("✅ Bilet anulat cu succes! Folosește ↩️ în CinemaHome pentru undo.");
+    } else {
+      const error = await response.json();
+      alert(`❌ Eroare: ${error.detail}`);
     }
-  };
+  } catch (err) {
+    alert("❌ Eroare de conexiune la server");
+  }
+};
 
   // =========================
   // Styles
@@ -542,6 +588,52 @@ export default function BuyTicket() {
 
               {error ? <div style={alert("error")}>{error}</div> : null}
               {success ? <div style={alert("success")}>{success}</div> : null}
+
+              {isTicketPurchased && lastTicketId && (
+  <div style={{ 
+    marginTop: "12px",
+    marginBottom: "12px",
+    padding: "12px",
+    background: "#fff5f5",
+    borderRadius: "14px",
+    border: "1px solid #ffb3d1",
+    textAlign: "center"
+  }}>
+    <div style={{ 
+      fontSize: "14px", 
+      color: "#d63384", 
+      marginBottom: "8px",
+      fontWeight: "bold" 
+    }}>
+      🎫 Bilet cumpărat: ID #{lastTicketId}
+    </div>
+    <button
+      type="button"
+      onClick={handleCancelTicket}
+      style={{
+        padding: "10px 16px",
+        borderRadius: "12px",
+        border: "2px solid #ff4444",
+        background: "white",
+        color: "#ff4444",
+        cursor: "pointer",
+        fontWeight: "bold",
+        fontSize: "14px",
+        width: "100%"
+      }}
+    >
+      ❌ Anulează acest bilet
+    </button>
+    <div style={{ 
+      fontSize: "11px", 
+      color: "#666", 
+      marginTop: "6px",
+      fontStyle: "italic" 
+    }}>
+      Poți anula biletul în maxim 24 de ore. Folosește butonul ↩️ în pagina principală pentru undo.
+    </div>
+  </div>
+)}
 
               <button type="submit" style={{ ...primaryBtn, opacity: isSubmitting ? 0.7 : 1 }} disabled={isSubmitting}>
                 {isSubmitting ? "Se procesează..." : "Plătește și cumpără"}
