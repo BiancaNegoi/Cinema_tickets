@@ -25,22 +25,14 @@ class GenreFilterStrategy {
   }
   filter(list) {
     if (this.selectedGenre === "Toate") return list;
-    
+
     const selected = this.selectedGenre.toLowerCase().trim();
-    
+
     return list.filter((e) => {
       const movieGenre = (e.genre || "").toLowerCase().trim();
-      
 
-      if (selected === "actiune" && e.title.toLowerCase().includes("spider")) {
-        return true;
-      }
-      
-
-      if (selected === "sf" && e.title.toLowerCase().includes("dune")) {
-        return true;
-      }
-      
+      if (selected === "actiune" && (e.title || "").toLowerCase().includes("spider")) return true;
+      if (selected === "sf" && (e.title || "").toLowerCase().includes("dune")) return true;
 
       return movieGenre === selected;
     });
@@ -77,9 +69,9 @@ export default function CinemaHome() {
   const [search, setSearch] = useState("");
   const [events, setEvents] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState("Toate");
-  
   const [removedMovies, setRemovedMovies] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+  const [hoveredMovie, setHoveredMovie] = useState(null);
 
   const navigate = useNavigate();
   const API = "http://127.0.0.1:8000";
@@ -107,49 +99,41 @@ export default function CinemaHome() {
     }
   };
 
-
   const genres = useMemo(() => {
     const set = new Set();
-    
 
     events.forEach((e) => {
       const g = (e.genre || "").trim();
       if (g) set.add(g);
     });
-    
 
     set.add("Actiune");
     set.add("SF");
-    
 
-    const sortedGenres = Array.from(set).sort((a, b) => 
+    const sortedGenres = Array.from(set).sort((a, b) =>
       a.localeCompare(b, "ro", { sensitivity: "base" })
     );
-    
+
     return ["Toate", ...sortedGenres];
   }, [events]);
- 
-  const filteredAndSorted = useMemo(() => {
 
-    const visibleEvents = events.filter(event => !removedMovies.includes(event.id));
-    
+  const filteredAndSorted = useMemo(() => {
+    const visibleEvents = events.filter((event) => !removedMovies.includes(event.id));
+
     const filterStrategy = new CompositeFilterStrategy([
       new SearchFilterStrategy(search),
       new GenreFilterStrategy(selectedGenre),
     ]);
     const sortStrategy = new SortByTitleAscStrategy();
     const service = new MovieListService({ filterStrategy, sortStrategy });
-    
+
     return service.apply(visibleEvents);
   }, [events, search, selectedGenre, removedMovies]);
 
- 
   const todayEvents = useMemo(() => {
-   
-    const visibleEvents = events.filter(event => !removedMovies.includes(event.id));
-    
+    const visibleEvents = events.filter((event) => !removedMovies.includes(event.id));
     const onlySearch = new SearchFilterStrategy(search).filter(visibleEvents);
-    
+
     const isToday = (isoDateString) => {
       if (!isoDateString) return false;
       const d = new Date(isoDateString);
@@ -160,7 +144,7 @@ export default function CinemaHome() {
         d.getDate() === now.getDate()
       );
     };
-    
+
     return onlySearch.filter((e) => isToday(e.date));
   }, [events, search, removedMovies]);
 
@@ -176,12 +160,12 @@ export default function CinemaHome() {
     if (!window.confirm("Sigur vrei sa ascunzi acest film din lista? Poti face undo mai tarziu.")) {
       return;
     }
-    
+
     const newRemovedMovies = [...removedMovies, eventId];
     setRemovedMovies(newRemovedMovies);
     localStorage.setItem("removedMovies", JSON.stringify(newRemovedMovies));
     setRedoStack([]);
-    
+
     alert("Film ascuns din lista! Foloseste ↩️ pentru a-l readuce.");
   };
 
@@ -190,14 +174,14 @@ export default function CinemaHome() {
       alert("Nu exista filme de restaurat!");
       return;
     }
-    
+
     const lastRemovedMovie = removedMovies[removedMovies.length - 1];
-    setRedoStack(prev => [...prev, lastRemovedMovie]);
-    
+    setRedoStack((prev) => [...prev, lastRemovedMovie]);
+
     const newRemovedMovies = removedMovies.slice(0, -1);
     setRemovedMovies(newRemovedMovies);
     localStorage.setItem("removedMovies", JSON.stringify(newRemovedMovies));
-    
+
     alert(`Film #${lastRemovedMovie} restaurat!`);
   };
 
@@ -206,15 +190,15 @@ export default function CinemaHome() {
       alert("Nu exista actiuni de redo!");
       return;
     }
-    
+
     const lastRedoMovie = redoStack[redoStack.length - 1];
     const newRemovedMovies = [...removedMovies, lastRedoMovie];
     setRemovedMovies(newRemovedMovies);
-    
+
     const newRedoStack = redoStack.slice(0, -1);
     setRedoStack(newRedoStack);
     localStorage.setItem("removedMovies", JSON.stringify(newRemovedMovies));
-    
+
     alert(`Film #${lastRedoMovie} ascuns din nou!`);
   };
 
@@ -223,12 +207,19 @@ export default function CinemaHome() {
       alert("Toate filmele sunt deja vizibile!");
       return;
     }
-    
+
     setRemovedMovies([]);
     localStorage.removeItem("removedMovies");
     setRedoStack([]);
-    
+
     alert(`Toate cele ${removedMovies.length} filme restaurate!`);
+  };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString("ro-RO", { dateStyle: "medium", timeStyle: "short" });
   };
 
   const pageStyle = {
@@ -593,16 +584,18 @@ export default function CinemaHome() {
         </div>
 
         {removedMovies.length > 0 && (
-          <div style={{
-            background: "#fff5f5",
-            padding: "10px",
-            borderRadius: "12px",
-            marginBottom: "15px",
-            border: "1px solid #ffb3d1",
-            textAlign: "center"
-          }}>
+          <div
+            style={{
+              background: "#fff5f5",
+              padding: "10px",
+              borderRadius: "12px",
+              marginBottom: "15px",
+              border: "1px solid #ffb3d1",
+              textAlign: "center",
+            }}
+          >
             <span style={{ color: "#d63384", fontWeight: "bold" }}>
-               {removedMovies.length} film(e) ascuns(e). 
+              {removedMovies.length} film(e) ascuns(e).
             </span>
             <button
               onClick={restoreAllMovies}
@@ -614,7 +607,7 @@ export default function CinemaHome() {
                 color: "#d63384",
                 borderRadius: "8px",
                 cursor: "pointer",
-                fontSize: "12px"
+                fontSize: "12px",
               }}
             >
               Restaureaza toate
@@ -624,17 +617,19 @@ export default function CinemaHome() {
 
         <div style={cardsGridStyle}>
           {filteredAndSorted.length === 0 ? (
-            <div style={{
-              gridColumn: "1 / -1",
-              textAlign: "center",
-              padding: "30px",
-              background: "white",
-              borderRadius: "20px",
-              border: "1px solid rgba(0,0,0,0.06)",
-            }}>
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                textAlign: "center",
+                padding: "30px",
+                background: "white",
+                borderRadius: "20px",
+                border: "1px solid rgba(0,0,0,0.06)",
+              }}
+            >
               <h3 style={{ color: "#d63384" }}>Niciun film gasit</h3>
               <p style={{ color: "#7a0040" }}>
-                {selectedGenre !== "Toate" 
+                {selectedGenre !== "Toate"
                   ? `Nu exista filme in genul "${selectedGenre}"`
                   : "Incearca alta cautare sau restauram filme ascunse"}
               </p>
@@ -649,7 +644,7 @@ export default function CinemaHome() {
                     color: "white",
                     borderRadius: "12px",
                     cursor: "pointer",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   Restaurează toate filmele
@@ -670,26 +665,97 @@ export default function CinemaHome() {
                 </p>
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-                  <button 
-                    style={{ 
-                      ...primaryBtn, 
+                  <button
+                    style={{
+                      ...primaryBtn,
                       background: "#ff9500",
-                      flex: 1 
-                    }} 
+                      flex: 1,
+                    }}
                     onClick={() => hideMovie(event.id)}
                   >
-                     Ascunde
+                    Ascunde
                   </button>
-                  
-                  <button 
-                    style={{ 
-                      ...primaryBtn,
-                      flex: 1 
-                    }} 
-                    onClick={() => alert("Detalii vor fi implementate ulterior")}
-                  >
-                     Detalii
-                  </button>
+
+                  <div style={{ position: "relative", flex: 1 }}>
+                    <button
+                      style={{ ...primaryBtn, flex: 1 }}
+                      onMouseEnter={() => setHoveredMovie(event)}
+                      onMouseLeave={() => setHoveredMovie(null)}
+                      onClick={() => {}}
+                    >
+                      Detalii
+                    </button>
+
+                    {hoveredMovie?.id === event.id && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "55px",
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          width: "260px",
+                          background: "white",
+                          borderRadius: "14px",
+                          padding: "12px",
+                          boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
+                          border: "1px solid rgba(0,0,0,0.08)",
+                          zIndex: 5000,
+                          textAlign: "left",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 900,
+                            color: "#d63384",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          {event.title}
+                        </div>
+
+                        <div style={{ fontSize: "13px", color: "#7a0040", lineHeight: 1.35 }}>
+                          <div>
+                            <b>📍 Locație:</b> {event.location}
+                          </div>
+                          {event.genre ? (
+                            <div>
+                              <b>🏷️ Gen:</b> {event.genre}
+                            </div>
+                          ) : null}
+                          <div>
+                            <b>🕒 Data:</b> {formatDateTime(event.date)}
+                          </div>
+                          <div>
+                            <b>🎟️ Bilete:</b> {event.available_tickets}/{event.total_tickets}
+                          </div>
+                          <div>
+                            <b>💰 Preț:</b> {event.price} lei
+                          </div>
+
+                          {event.description ? (
+                            <div style={{ marginTop: "8px" }}>
+                              <b>📝 Descriere:</b>
+                              <div style={{ opacity: 0.9 }}>{event.description}</div>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: "-8px",
+                            left: "50%",
+                            transform: "translateX(-50%) rotate(45deg)",
+                            width: "16px",
+                            height: "16px",
+                            background: "white",
+                            borderRight: "1px solid rgba(0,0,0,0.08)",
+                            borderBottom: "1px solid rgba(0,0,0,0.08)",
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -698,23 +764,22 @@ export default function CinemaHome() {
       </div>
 
       <div style={stickyBottomWrap}>
-        <button
-          style={stickyBuyBtn}
-          onClick={() => navigate("/buy")}
-        >
+        <button style={stickyBuyBtn} onClick={() => navigate("/buy")}>
           🎟️ Cumpara bilet
         </button>
       </div>
 
-      <div style={{ 
-        position: "fixed", 
-        right: "20px", 
-        bottom: "80px", 
-        display: "flex", 
-        gap: "10px",
-        zIndex: 3000,
-        flexDirection: "column"
-      }}>
+      <div
+        style={{
+          position: "fixed",
+          right: "20px",
+          bottom: "80px",
+          display: "flex",
+          gap: "10px",
+          zIndex: 3000,
+          flexDirection: "column",
+        }}
+      >
         <button
           onClick={handleUndo}
           disabled={removedMovies.length === 0}
@@ -732,13 +797,13 @@ export default function CinemaHome() {
             height: "50px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center"
+            justifyContent: "center",
           }}
           title={removedMovies.length === 0 ? "Nu exista actiuni de undo" : "Undo ultima ascundere"}
         >
           ↩️
         </button>
-        
+
         <button
           onClick={handleRedo}
           disabled={redoStack.length === 0}
@@ -756,7 +821,7 @@ export default function CinemaHome() {
             height: "50px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center"
+            justifyContent: "center",
           }}
           title={redoStack.length === 0 ? "Nu exista actiuni de redo" : "Redo ultima actiune"}
         >
