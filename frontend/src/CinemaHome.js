@@ -1,3 +1,4 @@
+// frontend/src/CinemaHome.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -30,10 +31,8 @@ class GenreFilterStrategy {
 
     return list.filter((e) => {
       const movieGenre = (e.genre || "").toLowerCase().trim();
-
       if (selected === "actiune" && (e.title || "").toLowerCase().includes("spider")) return true;
       if (selected === "sf" && (e.title || "").toLowerCase().includes("dune")) return true;
-
       return movieGenre === selected;
     });
   }
@@ -62,12 +61,10 @@ class MovieListService {
 
 export default function CinemaHome() {
   const [cinema] = useState("Cinema ABC");
-  const [location, setLocation] = useState(
-    localStorage.getItem("selectedCinema") || "Iulius Mall"
-  );
+  const [location, setLocation] = useState(localStorage.getItem("selectedCinema") || "Iulius Mall");
   const [showLocationMenu, setShowLocationMenu] = useState(false);
   const [search, setSearch] = useState("");
-  const [events, setEvents] = useState([]);
+  const [showtimes, setShowtimes] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState("Toate");
   const [removedMovies, setRemovedMovies] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -77,76 +74,193 @@ export default function CinemaHome() {
   const API = "http://127.0.0.1:8000";
 
   useEffect(() => {
-    loadEvents();
+    loadShowtimes();
     const savedRemovedMovies = JSON.parse(localStorage.getItem("removedMovies") || "[]");
     setRemovedMovies(savedRemovedMovies);
   }, [location]);
 
-  const loadEvents = async () => {
+  const loadShowtimes = async () => {
     try {
-      const response = await fetch(`${API}/events/`);
-      const data = await response.json();
-
-      const uniqueEvents = Array.from(new Map(data.map((e) => [e.id, e])).values());
-
-      const filteredByLocation = uniqueEvents.filter(
-        (e) => (e.location || "").toLowerCase() === location.toLowerCase()
-      );
-
-      setEvents(filteredByLocation);
-    } catch (err) {
-      console.log("Error loading events:", err);
+      const res = await fetch(`${API}/showtimes/?location=${encodeURIComponent(location)}`);
+      const data = await res.json();
+      setShowtimes(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setShowtimes([]);
     }
   };
 
-  const genres = useMemo(() => {
-    const set = new Set();
+  const formatHour = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+  };
 
-    events.forEach((e) => {
-      const g = (e.genre || "").trim();
-      if (g) set.add(g);
-    });
+  const isSameDay = (a, b) => {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
 
-    set.add("Actiune");
-    set.add("SF");
+  const inNextDays = (iso, daysAhead) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return false;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + daysAhead);
+    return d >= start && d < end;
+  };
 
-    const sortedGenres = Array.from(set).sort((a, b) =>
-      a.localeCompare(b, "ro", { sensitivity: "base" })
+  const isTomorrow = (iso) => {
+  if (!iso) return false;
+  const d = new Date(iso);
+  const t = new Date();
+  const tomorrow = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1);
+  return (
+    d.getFullYear() === tomorrow.getFullYear() &&
+    d.getMonth() === tomorrow.getMonth() &&
+    d.getDate() === tomorrow.getDate()
+  );
+};
+
+ const movies = useMemo(() => {
+  const map = new Map();
+  const now = new Date();
+
+  showtimes.forEach((s) => {
+    const key = String(s.event_id);
+
+    if (!map.has(key)) {
+      map.set(key, {
+        id: s.event_id,
+        title: s.title,
+        genre: s.genre,
+        description: s.description,
+        location: s.location,
+        price: s.price,
+        total_tickets: 0,
+        available_tickets: 0,
+        showtimes: [],
+      });
+    }
+
+    const m = map.get(key);
+    m.showtimes.push(s);
+
+    if (Number(s.price || 0) < Number(m.price || 0)) m.price = s.price;
+    if (!m.genre && s.genre) m.genre = s.genre;
+    if (!m.description && s.description) m.description = s.description;
+  });
+
+  map.forEach((m) => {
+    const sorted = [...m.showtimes].sort(
+      (a, b) => new Date(a.start_time) - new Date(b.start_time)
     );
 
-    return ["Toate", ...sortedGenres];
-  }, [events]);
+    const next = sorted.find((st) => new Date(st.start_time) >= now) || sorted[0];
+
+    m.total_tickets = Number(next?.total_tickets || 0);
+    m.available_tickets = Number(next?.available_tickets || 0);
+  });
+
+  return Array.from(map.values());
+}, [showtimes]);
+
+
+  const genres = useMemo(() => {
+    const set = new Set();
+    movies.forEach((m) => {
+      const g = (m.genre || "").trim();
+      if (g) set.add(g);
+    });
+    set.add("Actiune");
+    set.add("SF");
+    return [
+      "Toate",
+      ...Array.from(set).sort((a, b) => a.localeCompare(b, "ro", { sensitivity: "base" })),
+    ];
+  }, [movies]);
+
+  const getHoursString = (movie, daysAhead) => {
+    const times = new Set();
+    movie.showtimes.forEach((s) => {
+      if (inNextDays(s.start_time, daysAhead)) {
+        const h = formatHour(s.start_time);
+        if (h) times.add(h);
+      }
+    });
+    return Array.from(times).sort().join(", ");
+  };
+
+  const getHoursForExactDay = (movie, dayOffset) => {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const start = new Date(base);
+  start.setDate(start.getDate() + dayOffset);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const times = new Set();
+  movie.showtimes.forEach((s) => {
+    const d = new Date(s.start_time);
+    if (Number.isNaN(d.getTime())) return;
+    if (d >= start && d < end) {
+      const h = formatHour(s.start_time);
+      if (h) times.add(h);
+    }
+  });
+
+  return Array.from(times).sort().join(", ");
+};
+
+
+  const todayMovies = useMemo(() => {
+    const now = new Date();
+    const result = movies.filter((m) =>
+      m.showtimes.some((s) => {
+        const d = new Date(s.start_time);
+        if (Number.isNaN(d.getTime())) return false;
+        return isSameDay(d, now);
+      })
+    );
+    return result.filter((m) => !removedMovies.includes(m.id));
+  }, [movies, removedMovies]);
+
+  const tomorrowMovies = useMemo(() => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const visible = movies.filter((m) => !removedMovies.includes(m.id));
+  const onlySearch = new SearchFilterStrategy(search).filter(visible);
+
+  return onlySearch.filter((m) =>
+    m.showtimes.some((s) => {
+      const d = new Date(s.start_time);
+      if (Number.isNaN(d.getTime())) return false;
+      return isSameDay(d, tomorrow);
+    })
+  );
+}, [movies, search, removedMovies]);
+
+
+
+
+
 
   const filteredAndSorted = useMemo(() => {
-    const visibleEvents = events.filter((event) => !removedMovies.includes(event.id));
-
+    const visible = movies.filter((m) => !removedMovies.includes(m.id));
     const filterStrategy = new CompositeFilterStrategy([
       new SearchFilterStrategy(search),
       new GenreFilterStrategy(selectedGenre),
     ]);
     const sortStrategy = new SortByTitleAscStrategy();
     const service = new MovieListService({ filterStrategy, sortStrategy });
-
-    return service.apply(visibleEvents);
-  }, [events, search, selectedGenre, removedMovies]);
-
-  const todayEvents = useMemo(() => {
-    const visibleEvents = events.filter((event) => !removedMovies.includes(event.id));
-    const onlySearch = new SearchFilterStrategy(search).filter(visibleEvents);
-
-    const isToday = (isoDateString) => {
-      if (!isoDateString) return false;
-      const d = new Date(isoDateString);
-      const now = new Date();
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    };
-
-    return onlySearch.filter((e) => isToday(e.date));
-  }, [events, search, removedMovies]);
+    return service.apply(visible);
+  }, [movies, search, selectedGenre, removedMovies]);
 
   const changeLocation = (newLoc) => {
     localStorage.setItem("selectedCinema", newLoc);
@@ -157,15 +271,11 @@ export default function CinemaHome() {
   };
 
   const hideMovie = (eventId) => {
-    if (!window.confirm("Sigur vrei sa ascunzi acest film din lista? Poti face undo mai tarziu.")) {
-      return;
-    }
-
-    const newRemovedMovies = [...removedMovies, eventId];
-    setRemovedMovies(newRemovedMovies);
-    localStorage.setItem("removedMovies", JSON.stringify(newRemovedMovies));
+    if (!window.confirm("Sigur vrei sa ascunzi acest film din lista? Poti face undo mai tarziu.")) return;
+    const newRemoved = [...removedMovies, eventId];
+    setRemovedMovies(newRemoved);
+    localStorage.setItem("removedMovies", JSON.stringify(newRemoved));
     setRedoStack([]);
-
     alert("Film ascuns din lista! Foloseste ↩️ pentru a-l readuce.");
   };
 
@@ -174,15 +284,12 @@ export default function CinemaHome() {
       alert("Nu exista filme de restaurat!");
       return;
     }
-
-    const lastRemovedMovie = removedMovies[removedMovies.length - 1];
-    setRedoStack((prev) => [...prev, lastRemovedMovie]);
-
-    const newRemovedMovies = removedMovies.slice(0, -1);
-    setRemovedMovies(newRemovedMovies);
-    localStorage.setItem("removedMovies", JSON.stringify(newRemovedMovies));
-
-    alert(`Film #${lastRemovedMovie} restaurat!`);
+    const last = removedMovies[removedMovies.length - 1];
+    setRedoStack((prev) => [...prev, last]);
+    const newRemoved = removedMovies.slice(0, -1);
+    setRemovedMovies(newRemoved);
+    localStorage.setItem("removedMovies", JSON.stringify(newRemoved));
+    alert(`Film #${last} restaurat!`);
   };
 
   const handleRedo = () => {
@@ -190,16 +297,13 @@ export default function CinemaHome() {
       alert("Nu exista actiuni de redo!");
       return;
     }
-
-    const lastRedoMovie = redoStack[redoStack.length - 1];
-    const newRemovedMovies = [...removedMovies, lastRedoMovie];
-    setRemovedMovies(newRemovedMovies);
-
-    const newRedoStack = redoStack.slice(0, -1);
-    setRedoStack(newRedoStack);
-    localStorage.setItem("removedMovies", JSON.stringify(newRemovedMovies));
-
-    alert(`Film #${lastRedoMovie} ascuns din nou!`);
+    const last = redoStack[redoStack.length - 1];
+    const newRemoved = [...removedMovies, last];
+    setRemovedMovies(newRemoved);
+    const newRedo = redoStack.slice(0, -1);
+    setRedoStack(newRedo);
+    localStorage.setItem("removedMovies", JSON.stringify(newRemoved));
+    alert(`Film #${last} ascuns din nou!`);
   };
 
   const restoreAllMovies = () => {
@@ -207,19 +311,10 @@ export default function CinemaHome() {
       alert("Toate filmele sunt deja vizibile!");
       return;
     }
-
     setRemovedMovies([]);
     localStorage.removeItem("removedMovies");
     setRedoStack([]);
-
     alert(`Toate cele ${removedMovies.length} filme restaurate!`);
-  };
-
-  const formatDateTime = (iso) => {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString("ro-RO", { dateStyle: "medium", timeStyle: "short" });
   };
 
   const pageStyle = {
@@ -503,7 +598,7 @@ export default function CinemaHome() {
       <div style={containerStyle}>
         <div style={sectionTitle}>Astăzi</div>
 
-        {todayEvents.length === 0 ? (
+        {todayMovies.length === 0 ? (
           <div
             style={{
               background: "white",
@@ -518,24 +613,18 @@ export default function CinemaHome() {
           </div>
         ) : (
           <div style={todayRow}>
-            {todayEvents.map((event) => (
-              <div key={`today-${event.id}`} style={todayCard}>
-                <h3 style={{ color: "#d63384", margin: 0 }}>{event.title}</h3>
+            {todayMovies.map((m) => (
+              <div key={`today-${m.id}`} style={todayCard}>
+                <h3 style={{ color: "#d63384", margin: 0 }}>{m.title}</h3>
+                <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>📍 {m.location}</div>
+                {m.genre && <div style={{ marginTop: "6px", color: "#7a0040", fontWeight: 800 }}>🏷️ {m.genre}</div>}
                 <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>
-                  📍 {event.location}
+                  🎟️ {m.available_tickets}/{m.total_tickets}
                 </div>
-                {event.genre && (
-                  <div style={{ marginTop: "6px", color: "#7a0040", fontWeight: 800 }}>
-                    🏷️ {event.genre}
-                  </div>
-                )}
-                <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>
-                  🎟️ {event.available_tickets}/{event.total_tickets}
-                </div>
+                <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 900 }}>💰 {m.price} lei</div>
                 <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 900 }}>
-                  💰 {event.price} lei
+                  🕒 {getHoursForExactDay(m, 0) || "—"}
                 </div>
-
                 <button style={primaryBtn} onClick={() => alert("Detalii vor fi implementate ulterior")}>
                   Vezi detalii
                 </button>
@@ -543,6 +632,60 @@ export default function CinemaHome() {
             ))}
           </div>
         )}
+
+        <div style={sectionTitle}>Mâine</div>
+
+{tomorrowMovies.length === 0 ? (
+  <div
+    style={{
+      background: "white",
+      borderRadius: "18px",
+      padding: "16px",
+      border: "1px solid rgba(0,0,0,0.06)",
+      color: "#7a0040",
+      fontWeight: 800,
+    }}
+  >
+    Nu există filme programate pentru mâine.
+  </div>
+) : (
+  <div style={todayRow}>
+      {tomorrowMovies.map((m) => (
+      <div key={`tomorrow-${event.id}`} style={todayCard}>
+        <h3 style={{ color: "#d63384", margin: 0 }}>{event.title}</h3>
+
+        <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>
+          📍 {m.location}
+        </div>
+
+        {event.genre && (
+          <div style={{ marginTop: "6px", color: "#7a0040", fontWeight: 800 }}>
+            🏷️ {m.genre}
+          </div>
+        )}
+
+        <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 800 }}>
+          🎟️ {m.available_tickets}/{m.total_tickets}
+        </div>
+
+        <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 900 }}>
+          💰 {m.price} lei
+        </div>
+
+        <div style={{ marginTop: "8px", color: "#7a0040", fontWeight: 900 }}>
+                  🕒 {getHoursForExactDay(m, 1) || "—"}
+                </div>
+
+        <button
+          style={primaryBtn}
+          onClick={() => navigate("/buy")}
+        >
+          Vezi detalii
+        </button>
+      </div>
+    ))}
+  </div>
+)}
 
         <div
           style={{
@@ -594,9 +737,7 @@ export default function CinemaHome() {
               textAlign: "center",
             }}
           >
-            <span style={{ color: "#d63384", fontWeight: "bold" }}>
-              {removedMovies.length} film(e) ascuns(e).
-            </span>
+            <span style={{ color: "#d63384", fontWeight: "bold" }}>{removedMovies.length} film(e) ascuns(e).</span>
             <button
               onClick={restoreAllMovies}
               style={{
@@ -652,28 +793,29 @@ export default function CinemaHome() {
               )}
             </div>
           ) : (
-            filteredAndSorted.map((event) => (
-              <div key={event.id} style={cardStyle}>
-                <h3 style={{ color: "#d63384" }}>{event.title}</h3>
-                <p style={{ margin: "6px 0" }}>📍 {event.location}</p>
-                {event.genre && <p style={{ margin: "6px 0" }}>🏷️ {event.genre}</p>}
+            filteredAndSorted.map((m) => (
+              <div key={m.id} style={cardStyle}>
+                <h3 style={{ color: "#d63384" }}>{m.title}</h3>
+                <p style={{ margin: "6px 0" }}>📍 {m.location}</p>
+                {m.genre && <p style={{ margin: "6px 0" }}>🏷️ {m.genre}</p>}
                 <p style={{ margin: "6px 0" }}>
-                  🎟️ {event.available_tickets}/{event.total_tickets}
+                  🎟️ {m.available_tickets}/{m.total_tickets}
                 </p>
+                <p style={{ margin: "6px 0", fontWeight: 900, color: "#7a0040" }}>💰 {m.price} lei</p>
                 <p style={{ margin: "6px 0", fontWeight: 900, color: "#7a0040" }}>
-                  💰 {event.price} lei
+                  🕒 {getHoursString(m, 2) || "—"}
                 </p>
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
                   <button
                     style={{
                       ...primaryBtn,
-                       background: "#ffd1e6",
-                       color: "#b4005d",
-                       border: "2px solid #ff77b3",
-                       flex: 1,
+                      background: "#ffd1e6",
+                      color: "#b4005d",
+                      border: "2px solid #ff77b3",
+                      flex: 1,
                     }}
-                    onClick={() => hideMovie(event.id)}
+                    onClick={() => hideMovie(m.id)}
                   >
                     Ascunde
                   </button>
@@ -681,14 +823,14 @@ export default function CinemaHome() {
                   <div style={{ position: "relative", flex: 1 }}>
                     <button
                       style={{ ...primaryBtn, flex: 1 }}
-                      onMouseEnter={() => setHoveredMovie(event)}
+                      onMouseEnter={() => setHoveredMovie(m)}
                       onMouseLeave={() => setHoveredMovie(null)}
                       onClick={() => {}}
                     >
                       Detalii
                     </button>
 
-                    {hoveredMovie?.id === event.id && (
+                    {hoveredMovie?.id === m.id && (
                       <div
                         style={{
                           position: "absolute",
@@ -705,39 +847,30 @@ export default function CinemaHome() {
                           textAlign: "left",
                         }}
                       >
-                        <div
-                          style={{
-                            fontWeight: 900,
-                            color: "#d63384",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          {event.title}
-                        </div>
+                        <div style={{ fontWeight: 900, color: "#d63384", marginBottom: "6px" }}>{m.title}</div>
 
                         <div style={{ fontSize: "13px", color: "#7a0040", lineHeight: 1.35 }}>
                           <div>
-                            <b>📍 Locație:</b> {event.location}
+                            <b>📍 Locație:</b> {m.location}
                           </div>
-                          {event.genre ? (
+                          {m.genre ? (
                             <div>
-                              <b>🏷️ Gen:</b> {event.genre}
+                              <b>🏷️ Gen:</b> {m.genre}
                             </div>
                           ) : null}
                           <div>
-                            <b>🕒 Data:</b> {formatDateTime(event.date)}
+                            <b>🕒 Urm. 2 zile:</b> {getHoursString(m, 2) || "—"}
                           </div>
                           <div>
-                            <b>🎟️ Bilete:</b> {event.available_tickets}/{event.total_tickets}
+                            <b>🎟️ Bilete:</b> {m.available_tickets}/{m.total_tickets}
                           </div>
                           <div>
-                            <b>💰 Preț:</b> {event.price} lei
+                            <b>💰 Preț:</b> {m.price} lei
                           </div>
-
-                          {event.description ? (
+                          {m.description ? (
                             <div style={{ marginTop: "8px" }}>
                               <b>📝 Descriere:</b>
-                              <div style={{ opacity: 0.9 }}>{event.description}</div>
+                              <div style={{ opacity: 0.9 }}>{m.description}</div>
                             </div>
                           ) : null}
                         </div>

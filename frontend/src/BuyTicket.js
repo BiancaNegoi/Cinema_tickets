@@ -1,73 +1,50 @@
-// frontend/src/BuyTicket.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 export default function BuyTicket() {
-  const { eventId } = useParams(); // undefined pe /buy
+  const { eventId } = useParams();
   const navigate = useNavigate();
-
   const API = "http://127.0.0.1:8000";
 
-  // =========================
-  // Select mode (/buy)
-  // =========================
   const [location] = useState(localStorage.getItem("selectedCinema") || "Iulius Mall");
   const [allEvents, setAllEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
 
-  // =========================
-  // Checkout mode (/buy/:eventId)
-  // =========================
   const [event, setEvent] = useState(null);
 
-  // Buyer
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
 
-  // Qty
   const [qty, setQty] = useState(1);
+  const [ticketType, setTicketType] = useState("adult");
 
-  // Payment (fake but validated)
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
-  const [exp, setExp] = useState(""); // MM/YY
+  const [exp, setExp] = useState("");
   const [cvv, setCvv] = useState("");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isSelectMode = !eventId; // /buy
-  const isCheckoutMode = !!eventId; // /buy/:id
+  const isSelectMode = !eventId;
+  const isCheckoutMode = !!eventId;
 
   const [lastTicketId, setLastTicketId] = useState(null);
   const [isTicketPurchased, setIsTicketPurchased] = useState(false);
-  // =========================
-  // Load events for /buy selection
-  // =========================
+
   useEffect(() => {
     if (!isSelectMode) return;
 
     const loadEvents = async () => {
       try {
-        const res = await fetch(`${API}/events/`);
+        const res = await fetch(`${API}/showtimes/?location=${encodeURIComponent(location)}`);
         const data = await res.json();
-
-        // only from selected cinema
-        const byLocation = (data || []).filter(
-          (e) => (e.location || "").toLowerCase() === (location || "").toLowerCase()
-        );
-
-        // sort alphabetically
-        byLocation.sort((a, b) =>
-          (a.title || "").localeCompare((b.title || ""), "ro", { sensitivity: "base" })
-        );
-
-        setAllEvents(byLocation);
-
-        // default selection
-        if (byLocation.length > 0) setSelectedEventId(String(byLocation[0].id));
+        const list = Array.isArray(data) ? data : [];
+        list.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+        setAllEvents(list);
+        if (list.length > 0) setSelectedEventId(String(list[0].id));
       } catch (e) {
         setAllEvents([]);
       }
@@ -76,17 +53,14 @@ export default function BuyTicket() {
     loadEvents();
   }, [isSelectMode, location]);
 
-  // =========================
-  // Load event for /buy/:eventId checkout
-  // =========================
   useEffect(() => {
     if (!isCheckoutMode) return;
 
     const load = async () => {
       try {
-        const res = await fetch(`${API}/events/`);
-        const data = await res.json();
-        const found = (data || []).find((e) => String(e.id) === String(eventId));
+        const res = await fetch(`${API}/showtimes/${eventId}`);
+        if (!res.ok) throw new Error("not ok");
+        const found = await res.json();
         setEvent(found || null);
       } catch (e) {
         setEvent(null);
@@ -96,13 +70,13 @@ export default function BuyTicket() {
     load();
   }, [isCheckoutMode, eventId]);
 
-  // =========================
-  // Helpers
-  // =========================
   const total = useMemo(() => {
     if (!event) return 0;
-    return Number(event.price || 0) * Number(qty || 0);
-  }, [event, qty]);
+    const base = Number(event.price || 0) * Number(qty || 0);
+    if (ticketType === "student") return Math.round(base * 0.8 * 100) / 100;
+    if (ticketType === "child") return Math.round(base * 0.5 * 100) / 100;
+    return Math.round(base * 100) / 100;
+  }, [event, qty, ticketType]);
 
   const formatCardNumber = (value) => {
     const digits = value.replace(/\D/g, "").slice(0, 16);
@@ -119,26 +93,21 @@ export default function BuyTicket() {
     setError("");
     setSuccess("");
 
-    // Required buyer info
     if (!lastName.trim()) return "Completează numele.";
     if (!firstName.trim()) return "Completează prenumele.";
     if (!email.trim()) return "Completează email-ul.";
     if (!email.includes("@")) return "Email invalid.";
 
-    // Event checks
     if (!event) return "Evenimentul nu a fost găsit.";
     if (!qty || Number.isNaN(qty) || qty < 1) return "Cantitatea trebuie să fie >= 1.";
     if (qty > (event.available_tickets ?? 0)) return "Nu sunt suficiente bilete disponibile.";
 
-    // Payment required
     if (!cardName.trim()) return "Completează numele de pe card.";
 
     const digits = cardNumber.replace(/\s+/g, "");
     if (!/^\d{16}$/.test(digits)) return "Numărul cardului trebuie să aibă exact 16 cifre.";
 
-    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(exp)) {
-      return "Expirarea trebuie să fie în format MM/YY (ex: 07/29).";
-    }
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(exp)) return "Expirarea trebuie să fie în format MM/YY (ex: 07/29).";
 
     const [mmStr, yyStr] = exp.split("/");
     const mm = Number(mmStr);
@@ -147,113 +116,103 @@ export default function BuyTicket() {
     const curYY = now.getFullYear() % 100;
     const curMM = now.getMonth() + 1;
 
-    if (yy < curYY || (yy === curYY && mm < curMM)) {
-      return "Card expirat. Pune o dată de expirare validă (în viitor).";
-    }
-
+    if (yy < curYY || (yy === curYY && mm < curMM)) return "Card expirat. Pune o dată de expirare validă (în viitor).";
     if (!/^\d{3}$/.test(cvv)) return "CVV trebuie să aibă exact 3 cifre.";
 
     return "";
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (isSubmitting) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubmitting) return;
 
-  const msg = validate();
-  if (msg) {
-    setError(msg);
-    return;
-  }
-
-  setIsSubmitting(true);
-
-  try {
-    const payload = {
-      event_id: Number(eventId),
-      customer_name: `${firstName.trim()} ${lastName.trim()}`,
-      customer_email: email.trim(),
-      quantity: Number(qty),
-    };
-
-    const res = await fetch(`${API}/tickets/purchase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.detail || "Eroare la cumpărare.");
+    const msg = validate();
+    if (msg) {
+      setError(msg);
+      return;
     }
 
-    const ticket = await res.json();
-    
-    setLastTicketId(ticket.id);
-    setIsTicketPurchased(true);
-    
-    setSuccess(`✅ Bilet cumpărat cu succes! ID: ${ticket.id}. Total: ${ticket.total_price} lei`);
-    setError("");
+    setIsSubmitting(true);
 
-    setEvent((prev) =>
-      prev ? { ...prev, available_tickets: (prev.available_tickets ?? 0) - Number(qty) } : prev
-    );
-    
-    setLastName("");
-    setFirstName("");
-    setEmail("");
-    setCardName("");
-    setCardNumber("");
-    setExp("");
-    setCvv("");
-    setQty(1);
-    
-  } catch (err) {
-    setSuccess("");
-    setError(String(err.message || err));
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    try {
+      const payload = {
+        showtime_id: Number(eventId),
+        customer_name: `${firstName.trim()} ${lastName.trim()}`,
+        customer_email: email.trim(),
+        quantity: Number(qty),
+        ticket_type: ticketType,
+      };
 
-const handleCancelTicket = async () => {
-  if (!lastTicketId || !window.confirm("Sigur vrei să anulezi acest bilet? Poți face undo mai târziu.")) {
-    return;
-  }
-  
-  try {
-    const response = await fetch(`${API}/tickets/cancel/${lastTicketId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
-    });
-    
-    if (response.ok) {
-     
-      const res = await fetch(`${API}/events/`);
-      const data = await res.json();
-      const found = (data || []).find((e) => String(e.id) === String(eventId));
-      setEvent(found || null);
-      
-      setLastTicketId(null);
-      setIsTicketPurchased(false);
+      const res = await fetch(`${API}/tickets/purchase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || "Eroare la cumpărare.");
+      }
+
+      const ticket = await res.json();
+
+      setLastTicketId(ticket.id);
+      setIsTicketPurchased(true);
+
+      setSuccess(`✅ Bilet cumpărat cu succes! ID: ${ticket.id}. Total: ${ticket.total_price} lei`);
+      setError("");
+
+      setEvent((prev) =>
+        prev ? { ...prev, available_tickets: (prev.available_tickets ?? 0) - Number(qty) } : prev
+      );
+
+      setLastName("");
+      setFirstName("");
+      setEmail("");
+      setCardName("");
+      setCardNumber("");
+      setExp("");
+      setCvv("");
+      setQty(1);
+      setTicketType("adult");
+    } catch (err) {
       setSuccess("");
-      alert("✅ Bilet anulat cu succes! Folosește ↩️ în CinemaHome pentru undo.");
-    } else {
-      const error = await response.json();
-      alert(`❌ Eroare: ${error.detail}`);
+      setError(String(err.message || err));
+    } finally {
+      setIsSubmitting(false);
     }
-  } catch (err) {
-    alert("❌ Eroare de conexiune la server");
-  }
-};
+  };
 
-  // =========================
-  // Styles
-  // =========================
+  const handleCancelTicket = async () => {
+    if (!lastTicketId || !window.confirm("Sigur vrei să anulezi acest bilet? Poți face undo mai târziu.")) return;
+
+    try {
+      const response = await fetch(`${API}/tickets/cancel/${lastTicketId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.ok) {
+        const res = await fetch(`${API}/showtimes/${eventId}`);
+        const found = await res.json();
+        setEvent(found || null);
+
+        setLastTicketId(null);
+        setIsTicketPurchased(false);
+        setSuccess("");
+        alert("✅ Bilet anulat cu succes! Folosește ↩️ în pagina principală pentru undo.");
+      } else {
+        const error = await response.json();
+        alert(`❌ Eroare: ${error.detail}`);
+      }
+    } catch (err) {
+      alert("❌ Eroare de conexiune la server");
+    }
+  };
+
   const page = {
     minHeight: "100vh",
-    background:
-      "radial-gradient(1200px 600px at 20% 0%, #fff 0%, #ffe4f0 40%, #ffd1e6 100%)",
+    background: "radial-gradient(1200px 600px at 20% 0%, #fff 0%, #ffe4f0 40%, #ffd1e6 100%)",
     padding: "26px 16px",
     fontFamily: "Arial, sans-serif",
     color: "#3b0030",
@@ -350,8 +309,7 @@ const handleCancelTicket = async () => {
     background: "white",
     padding: "10px 12px",
     borderRadius: "14px",
-    border:
-      type === "error" ? "1px solid rgba(220,0,0,0.25)" : "1px solid rgba(0,140,0,0.25)",
+    border: type === "error" ? "1px solid rgba(220,0,0,0.25)" : "1px solid rgba(0,140,0,0.25)",
     color: type === "error" ? "crimson" : "green",
     marginBottom: "12px",
     boxShadow: "0 8px 18px rgba(0,0,0,0.08)",
@@ -390,9 +348,6 @@ const handleCancelTicket = async () => {
     gap: "18px",
   };
 
-  // =========================
-  // /buy: SELECT MOVIE SCREEN
-  // =========================
   if (isSelectMode) {
     return (
       <div style={page}>
@@ -405,13 +360,13 @@ const handleCancelTicket = async () => {
           </div>
 
           <div style={card}>
-            <h2 style={{ margin: 0, color: "#d63384" }}>Alege filmul</h2>
+            <h2 style={{ margin: 0, color: "#d63384" }}>Alege showtime</h2>
             <div style={{ marginTop: "6px", fontWeight: 800, color: "#6b0040" }}>
               Cinema selectat: <span style={{ color: "#b4005d" }}>{location}</span>
             </div>
 
             <div style={{ marginTop: "16px" }}>
-              <label style={label}>Film</label>
+              <label style={label}>Showtime</label>
               <select
                 value={selectedEventId}
                 onChange={(e) => setSelectedEventId(e.target.value)}
@@ -423,7 +378,9 @@ const handleCancelTicket = async () => {
                 ) : (
                   allEvents.map((e) => (
                     <option key={e.id} value={String(e.id)}>
-                      {e.title} {e.genre ? `• ${e.genre}` : ""} • {e.price} lei
+                      {e.title} {e.genre ? `• ${e.genre}` : ""} •{" "}
+                      {new Date(e.start_time).toLocaleString("ro-RO", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{" "}
+                      • {e.price} lei
                     </option>
                   ))
                 )}
@@ -432,7 +389,7 @@ const handleCancelTicket = async () => {
 
             <div style={pillRow}>
               <span style={pill}>📍 {location}</span>
-              <span style={pill}>🎬 Filme: {allEvents.length}</span>
+              <span style={pill}>🎬 Showtimes: {allEvents.length}</span>
             </div>
 
             <button
@@ -452,9 +409,6 @@ const handleCancelTicket = async () => {
     );
   }
 
-  // =========================
-  // /buy/:eventId CHECKOUT
-  // =========================
   return (
     <div style={page}>
       <div style={container}>
@@ -472,63 +426,46 @@ const handleCancelTicket = async () => {
 
           <div style={pillRow}>
             <span style={pill}>📍 {event?.location || "..."}</span>
+            <span style={pill}>🕒 {event?.start_time ? new Date(event.start_time).toLocaleString("ro-RO") : "..."}</span>
             <span style={pill}>💰 {event ? `${event.price} lei / bilet` : "..."}</span>
             <span style={pill}>🎟️ Disponibile: {event?.available_tickets ?? "..."}</span>
+            <span style={pill}>🎫 {ticketType}</span>
             {event?.genre ? <span style={pill}>🏷️ {event.genre}</span> : null}
           </div>
         </div>
 
         <div style={layout}>
-          {/* LEFT: form */}
           <div style={card}>
             <form onSubmit={handleSubmit}>
               <h3 style={sectionTitle}>Date cumpărător</h3>
 
-              {/* Nume */}
               <div style={{ marginBottom: "12px" }}>
                 <label style={label}>Nume</label>
-                <input
-                  style={input}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required
-                />
+                <input style={input} value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               </div>
 
-              {/* Prenume (sub nume) */}
               <div style={{ marginBottom: "12px" }}>
                 <label style={label}>Prenume</label>
-                <input
-                  style={input}
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                />
+                <input style={input} value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
               </div>
 
-              {/* Email */}
               <div style={{ marginBottom: "12px" }}>
                 <label style={label}>Email</label>
-                <input
-                  style={input}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  type="email"
-                />
+                <input style={input} value={email} onChange={(e) => setEmail(e.target.value)} required type="email" />
               </div>
 
-              {/* Qty */}
-              <div style={{ marginBottom: "6px", maxWidth: "220px" }}>
+              <div style={{ marginBottom: "12px", maxWidth: "220px" }}>
                 <label style={label}>Cantitate</label>
-                <input
-                  style={input}
-                  type="number"
-                  min={1}
-                  value={qty}
-                  onChange={(e) => setQty(Number(e.target.value))}
-                  required
-                />
+                <input style={input} type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} required />
+              </div>
+
+              <div style={{ marginBottom: "6px", maxWidth: "220px" }}>
+                <label style={label}>Tip bilet</label>
+                <select style={{ ...input, cursor: "pointer" }} value={ticketType} onChange={(e) => setTicketType(e.target.value)} required>
+                  <option value="adult">Adult</option>
+                  <option value="student">Student</option>
+                  <option value="child">Copil</option>
+                </select>
               </div>
 
               <div style={hr} />
@@ -537,12 +474,7 @@ const handleCancelTicket = async () => {
 
               <div style={{ marginBottom: "12px" }}>
                 <label style={label}>Nume pe card</label>
-                <input
-                  style={input}
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                  required
-                />
+                <input style={input} value={cardName} onChange={(e) => setCardName(e.target.value)} required />
               </div>
 
               <div style={{ marginBottom: "12px" }}>
@@ -590,66 +522,50 @@ const handleCancelTicket = async () => {
               {success ? <div style={alert("success")}>{success}</div> : null}
 
               {isTicketPurchased && lastTicketId && (
-  <div style={{ 
-    marginTop: "12px",
-    marginBottom: "12px",
-    padding: "12px",
-    background: "#fff5f5",
-    borderRadius: "14px",
-    border: "1px solid #ffb3d1",
-    textAlign: "center"
-  }}>
-    <div style={{ 
-      fontSize: "14px", 
-      color: "#d63384", 
-      marginBottom: "8px",
-      fontWeight: "bold" 
-    }}>
-      🎫 Bilet cumpărat: ID #{lastTicketId}
-    </div>
-    <button
-      type="button"
-      onClick={handleCancelTicket}
-      style={{
-        padding: "10px 16px",
-        borderRadius: "12px",
-        border: "2px solid #ff4444",
-        background: "white",
-        color: "#ff4444",
-        cursor: "pointer",
-        fontWeight: "bold",
-        fontSize: "14px",
-        width: "100%"
-      }}
-    >
-      ❌ Anulează acest bilet
-    </button>
-    <div style={{ 
-      fontSize: "11px", 
-      color: "#666", 
-      marginTop: "6px",
-      fontStyle: "italic" 
-    }}>
-      Poți anula biletul în maxim 24 de ore. Folosește butonul ↩️ în pagina principală pentru undo.
-    </div>
-  </div>
-)}
+                <div
+                  style={{
+                    marginTop: "12px",
+                    marginBottom: "12px",
+                    padding: "12px",
+                    background: "#fff5f5",
+                    borderRadius: "14px",
+                    border: "1px solid #ffb3d1",
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: "14px", color: "#d63384", marginBottom: "8px", fontWeight: "bold" }}>
+                    🎫 Bilet cumpărat: ID #{lastTicketId}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelTicket}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: "12px",
+                      border: "2px solid #ff4444",
+                      background: "white",
+                      color: "#ff4444",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                      fontSize: "14px",
+                      width: "100%",
+                    }}
+                  >
+                    ❌ Anulează acest bilet
+                  </button>
+                </div>
+              )}
 
               <button type="submit" style={{ ...primaryBtn, opacity: isSubmitting ? 0.7 : 1 }} disabled={isSubmitting}>
                 {isSubmitting ? "Se procesează..." : "Plătește și cumpără"}
               </button>
 
               <button type="button" style={ghostBtn} onClick={() => navigate("/buy")}>
-                Schimbă filmul
+                Schimbă showtime
               </button>
-
-              <div style={{ marginTop: "10px", fontSize: "12px", opacity: 0.8, lineHeight: 1.4 }}>
-                * Plata este fictivă (nu se procesează bani reali), dar validăm formatul datelor pentru realism.
-              </div>
             </form>
           </div>
 
-          {/* RIGHT: summary */}
           <div style={card}>
             <h3 style={sectionTitle}>Rezumat comandă</h3>
 
@@ -664,28 +580,8 @@ const handleCancelTicket = async () => {
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
-              <div style={{ opacity: 0.85 }}>Subtotal</div>
-              <div style={{ fontWeight: "bold" }}>{total} lei</div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
-              <div style={{ opacity: 0.85 }}>Taxe</div>
-              <div style={{ fontWeight: "bold" }}>0 lei</div>
-            </div>
-
-            <div style={hr} />
-
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>Total</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold", color: "#d63384" }}>
-                {total} lei
-              </div>
-            </div>
-
-            <div style={{ marginTop: "14px", fontSize: "12px", opacity: 0.85, lineHeight: 1.5 }}>
-              ✅ Confirmarea se face instant după trimiterea formularului. <br />
-              ✅ Biletele disponibile se reduc în baza de date. <br />
-              ℹ️ Dacă primești eroare, verifică dacă backend-ul rulează pe <b>127.0.0.1:8000</b>.
+              <div style={{ opacity: 0.85 }}>Total</div>
+              <div style={{ fontWeight: "bold", color: "#d63384" }}>{total} lei</div>
             </div>
           </div>
         </div>
