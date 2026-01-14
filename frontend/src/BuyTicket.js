@@ -1,58 +1,80 @@
+// frontend/src/BuyTicket.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 export default function BuyTicket() {
-  const { eventId } = useParams();
+  const { eventId } = useParams(); // aici e showtimeId
   const navigate = useNavigate();
+
   const API = "http://127.0.0.1:8000";
 
+  // =========================
+  // Select mode (/buy)
+  // =========================
   const [location] = useState(localStorage.getItem("selectedCinema") || "Iulius Mall");
-  const [allEvents, setAllEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [allShowtimes, setAllShowtimes] = useState([]);
+  const [selectedShowtimeId, setSelectedShowtimeId] = useState("");
 
-  const [event, setEvent] = useState(null);
+  // =========================
+  // Checkout mode (/buy/:showtimeId)
+  // =========================
+  const [showtime, setShowtime] = useState(null);
 
+  // Buyer
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
 
+  // Qty + ticket type
   const [qty, setQty] = useState(1);
   const [ticketType, setTicketType] = useState("adult");
 
+  // Payment (fake but validated)
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
-  const [exp, setExp] = useState("");
+  const [exp, setExp] = useState(""); // MM/YY
   const [cvv, setCvv] = useState("");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isSelectMode = !eventId;
-  const isCheckoutMode = !!eventId;
+  const isSelectMode = !eventId; // /buy
+  const isCheckoutMode = !!eventId; // /buy/:id
 
   const [lastTicketId, setLastTicketId] = useState(null);
   const [isTicketPurchased, setIsTicketPurchased] = useState(false);
 
+  // =========================
+  // Load showtimes for /buy selection
+  // =========================
   useEffect(() => {
     if (!isSelectMode) return;
 
-    const loadEvents = async () => {
+    const loadShowtimes = async () => {
       try {
         const res = await fetch(`${API}/showtimes/?location=${encodeURIComponent(location)}`);
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
+
+        // sort by start_time
         list.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-        setAllEvents(list);
-        if (list.length > 0) setSelectedEventId(String(list[0].id));
+
+        setAllShowtimes(list);
+
+        // default selection
+        if (list.length > 0) setSelectedShowtimeId(String(list[0].id));
       } catch (e) {
-        setAllEvents([]);
+        setAllShowtimes([]);
       }
     };
 
-    loadEvents();
+    loadShowtimes();
   }, [isSelectMode, location]);
 
+  // =========================
+  // Load showtime for /buy/:showtimeId checkout
+  // =========================
   useEffect(() => {
     if (!isCheckoutMode) return;
 
@@ -61,22 +83,25 @@ export default function BuyTicket() {
         const res = await fetch(`${API}/showtimes/${eventId}`);
         if (!res.ok) throw new Error("not ok");
         const found = await res.json();
-        setEvent(found || null);
+        setShowtime(found || null);
       } catch (e) {
-        setEvent(null);
+        setShowtime(null);
       }
     };
 
     load();
   }, [isCheckoutMode, eventId]);
 
+  // =========================
+  // Helpers
+  // =========================
   const total = useMemo(() => {
-    if (!event) return 0;
-    const base = Number(event.price || 0) * Number(qty || 0);
+    if (!showtime) return 0;
+    const base = Number(showtime.price || 0) * Number(qty || 0);
     if (ticketType === "student") return Math.round(base * 0.8 * 100) / 100;
     if (ticketType === "child") return Math.round(base * 0.5 * 100) / 100;
     return Math.round(base * 100) / 100;
-  }, [event, qty, ticketType]);
+  }, [showtime, qty, ticketType]);
 
   const formatCardNumber = (value) => {
     const digits = value.replace(/\D/g, "").slice(0, 16);
@@ -98,9 +123,9 @@ export default function BuyTicket() {
     if (!email.trim()) return "Completează email-ul.";
     if (!email.includes("@")) return "Email invalid.";
 
-    if (!event) return "Evenimentul nu a fost găsit.";
+    if (!showtime) return "Showtime-ul nu a fost găsit.";
     if (!qty || Number.isNaN(qty) || qty < 1) return "Cantitatea trebuie să fie >= 1.";
-    if (qty > (event.available_tickets ?? 0)) return "Nu sunt suficiente bilete disponibile.";
+    if (qty > (showtime.available_tickets ?? 0)) return "Nu sunt suficiente bilete disponibile.";
 
     if (!cardName.trim()) return "Completează numele de pe card.";
 
@@ -136,11 +161,11 @@ export default function BuyTicket() {
 
     try {
       const payload = {
-        showtime_id: Number(eventId),
+        showtime_id: Number(eventId), // IMPORTANT: showtime_id (nu event_id)
         customer_name: `${firstName.trim()} ${lastName.trim()}`,
         customer_email: email.trim(),
         quantity: Number(qty),
-        ticket_type: ticketType,
+        ticket_type: ticketType, // IMPORTANT: backend-ul tau cere asta
       };
 
       const res = await fetch(`${API}/tickets/purchase`, {
@@ -162,7 +187,8 @@ export default function BuyTicket() {
       setSuccess(`✅ Bilet cumpărat cu succes! ID: ${ticket.id}. Total: ${ticket.total_price} lei`);
       setError("");
 
-      setEvent((prev) =>
+      // update local available
+      setShowtime((prev) =>
         prev ? { ...prev, available_tickets: (prev.available_tickets ?? 0) - Number(qty) } : prev
       );
 
@@ -184,7 +210,7 @@ export default function BuyTicket() {
   };
 
   const handleCancelTicket = async () => {
-    if (!lastTicketId || !window.confirm("Sigur vrei să anulezi acest bilet? Poți face undo mai târziu.")) return;
+    if (!lastTicketId || !window.confirm("Sigur vrei să anulezi acest bilet?")) return;
 
     try {
       const response = await fetch(`${API}/tickets/cancel/${lastTicketId}`, {
@@ -193,23 +219,27 @@ export default function BuyTicket() {
       });
 
       if (response.ok) {
+        // reload showtime
         const res = await fetch(`${API}/showtimes/${eventId}`);
         const found = await res.json();
-        setEvent(found || null);
+        setShowtime(found || null);
 
         setLastTicketId(null);
         setIsTicketPurchased(false);
         setSuccess("");
-        alert("✅ Bilet anulat cu succes! Folosește ↩️ în pagina principală pentru undo.");
+        alert("✅ Bilet anulat cu succes!");
       } else {
-        const error = await response.json();
-        alert(`❌ Eroare: ${error.detail}`);
+        const error = await response.json().catch(() => ({}));
+        alert(`❌ Eroare: ${error.detail || "cancel failed"}`);
       }
     } catch (err) {
       alert("❌ Eroare de conexiune la server");
     }
   };
 
+  // =========================
+  // Styles (păstrate ca la tine)
+  // =========================
   const page = {
     minHeight: "100vh",
     background: "radial-gradient(1200px 600px at 20% 0%, #fff 0%, #ffe4f0 40%, #ffd1e6 100%)",
@@ -259,12 +289,7 @@ export default function BuyTicket() {
     border: "1px solid rgba(255,255,255,0.6)",
   };
 
-  const sectionTitle = {
-    color: "#d63384",
-    marginTop: 0,
-    marginBottom: "12px",
-    fontSize: "18px",
-  };
+  const sectionTitle = { color: "#d63384", marginTop: 0, marginBottom: "12px", fontSize: "18px" };
 
   const label = {
     display: "block",
@@ -305,7 +330,7 @@ export default function BuyTicket() {
 
   const hr = { border: "none", borderTop: "1px solid rgba(0,0,0,0.08)", margin: "14px 0" };
 
-  const alert = (type) => ({
+  const alertBox = (type) => ({
     background: "white",
     padding: "10px 12px",
     borderRadius: "14px",
@@ -342,12 +367,11 @@ export default function BuyTicket() {
     marginTop: "10px",
   };
 
-  const layout = {
-    display: "grid",
-    gridTemplateColumns: "1.6fr 1fr",
-    gap: "18px",
-  };
+  const layout = { display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "18px" };
 
+  // =========================
+  // /buy: SELECT SHOWTIME
+  // =========================
   if (isSelectMode) {
     return (
       <div style={page}>
@@ -368,19 +392,24 @@ export default function BuyTicket() {
             <div style={{ marginTop: "16px" }}>
               <label style={label}>Showtime</label>
               <select
-                value={selectedEventId}
-                onChange={(e) => setSelectedEventId(e.target.value)}
+                value={selectedShowtimeId}
+                onChange={(e) => setSelectedShowtimeId(e.target.value)}
                 style={{ ...input, cursor: "pointer" }}
                 required
               >
-                {allEvents.length === 0 ? (
-                  <option value="">Nu există filme disponibile</option>
+                {allShowtimes.length === 0 ? (
+                  <option value="">Nu există showtimes disponibile</option>
                 ) : (
-                  allEvents.map((e) => (
-                    <option key={e.id} value={String(e.id)}>
-                      {e.title} {e.genre ? `• ${e.genre}` : ""} •{" "}
-                      {new Date(e.start_time).toLocaleString("ro-RO", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{" "}
-                      • {e.price} lei
+                  allShowtimes.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.title} {s.genre ? `• ${s.genre}` : ""} •{" "}
+                      {new Date(s.start_time).toLocaleString("ro-RO", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      • {s.price} lei
                     </option>
                   ))
                 )}
@@ -389,13 +418,13 @@ export default function BuyTicket() {
 
             <div style={pillRow}>
               <span style={pill}>📍 {location}</span>
-              <span style={pill}>🎬 Showtimes: {allEvents.length}</span>
+              <span style={pill}>🎬 Showtimes: {allShowtimes.length}</span>
             </div>
 
             <button
-              style={{ ...primaryBtn, marginTop: "16px", opacity: allEvents.length ? 1 : 0.6 }}
-              disabled={!allEvents.length || !selectedEventId}
-              onClick={() => navigate(`/buy/${selectedEventId}`)}
+              style={{ ...primaryBtn, marginTop: "16px", opacity: allShowtimes.length ? 1 : 0.6 }}
+              disabled={!allShowtimes.length || !selectedShowtimeId}
+              onClick={() => navigate(`/buy/${selectedShowtimeId}`)}
             >
               Continuă → Checkout
             </button>
@@ -409,6 +438,9 @@ export default function BuyTicket() {
     );
   }
 
+  // =========================
+  // /buy/:showtimeId CHECKOUT
+  // =========================
   return (
     <div style={page}>
       <div style={container}>
@@ -421,16 +453,18 @@ export default function BuyTicket() {
 
         <div style={{ marginBottom: "12px" }}>
           <h2 style={{ margin: "0 0 6px 0", color: "#d63384" }}>
-            Cumpără bilet {event ? `— ${event.title}` : ""}
+            Cumpără bilet {showtime ? `— ${showtime.title}` : ""}
           </h2>
 
           <div style={pillRow}>
-            <span style={pill}>📍 {event?.location || "..."}</span>
-            <span style={pill}>🕒 {event?.start_time ? new Date(event.start_time).toLocaleString("ro-RO") : "..."}</span>
-            <span style={pill}>💰 {event ? `${event.price} lei / bilet` : "..."}</span>
-            <span style={pill}>🎟️ Disponibile: {event?.available_tickets ?? "..."}</span>
+            <span style={pill}>📍 {showtime?.location || "..."}</span>
+            <span style={pill}>
+              🕒 {showtime?.start_time ? new Date(showtime.start_time).toLocaleString("ro-RO") : "..."}
+            </span>
+            <span style={pill}>💰 {showtime ? `${showtime.price} lei / bilet` : "..."}</span>
+            <span style={pill}>🎟️ Disponibile: {showtime?.available_tickets ?? "..."}</span>
             <span style={pill}>🎫 {ticketType}</span>
-            {event?.genre ? <span style={pill}>🏷️ {event.genre}</span> : null}
+            {showtime?.genre ? <span style={pill}>🏷️ {showtime.genre}</span> : null}
           </div>
         </div>
 
@@ -454,18 +488,25 @@ export default function BuyTicket() {
                 <input style={input} value={email} onChange={(e) => setEmail(e.target.value)} required type="email" />
               </div>
 
-              <div style={{ marginBottom: "12px", maxWidth: "220px" }}>
-                <label style={label}>Cantitate</label>
-                <input style={input} type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} required />
-              </div>
+              <div style={row2}>
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={label}>Cantitate</label>
+                  <input style={input} type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} required />
+                </div>
 
-              <div style={{ marginBottom: "6px", maxWidth: "220px" }}>
-                <label style={label}>Tip bilet</label>
-                <select style={{ ...input, cursor: "pointer" }} value={ticketType} onChange={(e) => setTicketType(e.target.value)} required>
-                  <option value="adult">Adult</option>
-                  <option value="student">Student</option>
-                  <option value="child">Copil</option>
-                </select>
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={label}>Tip bilet</label>
+                  <select
+                    style={{ ...input, cursor: "pointer" }}
+                    value={ticketType}
+                    onChange={(e) => setTicketType(e.target.value)}
+                    required
+                  >
+                    <option value="adult">Adult</option>
+                    <option value="student">Student</option>
+                    <option value="child">Copil</option>
+                  </select>
+                </div>
               </div>
 
               <div style={hr} />
@@ -518,8 +559,8 @@ export default function BuyTicket() {
                 </div>
               </div>
 
-              {error ? <div style={alert("error")}>{error}</div> : null}
-              {success ? <div style={alert("success")}>{success}</div> : null}
+              {error ? <div style={alertBox("error")}>{error}</div> : null}
+              {success ? <div style={alertBox("success")}>{success}</div> : null}
 
               {isTicketPurchased && lastTicketId && (
                 <div
@@ -570,8 +611,8 @@ export default function BuyTicket() {
             <h3 style={sectionTitle}>Rezumat comandă</h3>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
-              <div style={{ fontWeight: "bold" }}>{event?.title || "Eveniment"}</div>
-              <div style={{ color: "#6b0040", fontWeight: 900 }}>{event ? `${event.price} lei` : "-"}</div>
+              <div style={{ fontWeight: "bold" }}>{showtime?.title || "Eveniment"}</div>
+              <div style={{ color: "#6b0040", fontWeight: 900 }}>{showtime ? `${showtime.price} lei` : "-"}</div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
